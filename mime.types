@@ -1,0 +1,80 @@
+type=text/css exts=css
+
+type=application/octet-stream exts=bin,exe
+
+type=application/oda exts=oda
+
+type=application/pdf exts=pdf
+
+type=application/postscript exts=ai,eps,ps
+
+type=application/rtf exts=rtf
+
+type=application/x-mif exts=mif,fm
+
+type=application/x-gtar exts=gtar
+
+type=application/x-shar exts=shar
+
+type=application/x-tar exts=tar
+
+type=application/mac-binhex40 exts=hqx
+
+type=audio/basic exts=au,snd
+
+type=audio/x-aiff exts=aif,aiff,aifc
+
+type=audio/x-wav exts=wav
+
+type=image/gif exts=gif
+
+type=image/ief exts=ief
+
+type=image/jpeg exts=jpeg,jpg,jpe
+
+type=image/tiff exts=tiff,tif
+
+type=image/x-rgb exts=rgb
+
+type=image/x-xbitmap exts=xbm
+
+type=image/x-xpixmap exts=xpm
+
+type=image/x-xwindowdump exts=xwd
+
+type=text/html exts=htm,html
+
+type=text/plain exts=txt
+
+type=text/richtext exts=rtx
+
+type=text/tab-separated-values exts=tsv
+
+type=text/x-setext exts=etx
+
+type=video/mpeg exts=mpeg,mpg,mpe
+
+type=video/quicktime exts=qt,mov
+
+type=video/x-msvideo exts=avi
+
+enc=x-gzip exts=gz
+
+enc=x-compress exts=z
+
+enc=x-uuencode exts=uu,uue
+
+type=magnus-internal/imagemap exts=map
+
+type=magnus-internal/parsed-html exts=shtml
+
+type=magnus-internal/cgi exts=cgi,exe,bat
+
+type=magnus-internal/jsp exts=jsp
+
+type=application/x-font-woff exts=woff
+
+type=image/png exts=png
+
+type=image/svg+xml exts=svg
+
