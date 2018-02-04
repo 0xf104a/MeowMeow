@@ -5,8 +5,8 @@
 -define(version,"Ghost/1.0.0-prealpha-290118").
 
 
-    
-get_time() -> 
+
+get_time() ->
     Months=#{1=>"Jan",
              2=>"Feb",
              3=>"Mar",
@@ -46,8 +46,7 @@ get_filename(Route) ->
        IndexExists -> IndexName;
        true -> ""
     end.
- 
-handle_headers(Data)->
+handle_get(Data)->
     [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),
     FileName=get_filename(Route),
@@ -60,12 +59,12 @@ handle_headers(Data)->
         if ContentLength>0 ->
                 io:fwrite("200 OK ~n"),
                 {ok,response:response_headers( #{"Date" => StrTime,
-                                             "Connection" => "keep-alive",
-                                             "Content-Length" => integer_to_list(ContentLength),
-                                             "Content-Type" => mime_by_fname(FileName),
-                                             "Server" => ?version},200),FileName};
-                true->{ok,io:fwrite("204 No Content ~n"),
-                        response:response( #{"Date" => StrTime,
+                                            "Connection" => "keep-alive",
+                                            "Content-Length" => integer_to_list(ContentLength),
+                                            "Content-Type" => mime_by_fname(FileName),
+                                            "Server" => ?version},200),FileName};
+                true->io:fwrite("204 No Content ~n"),
+                      {ok,response:response_headers( #{"Date" => StrTime,
                                             "Connection" => "keep-alive",
                                             "Content-Length" => integer_to_list(ContentLength),
                                             "Content-Type" => mime_by_fname(FileName),
@@ -73,8 +72,13 @@ handle_headers(Data)->
         end;
         true->{aborted,404}
     end.
-    
-handle(Data) ->  
+handle_headers(Data)->
+    case maps:get("method",Data) of
+        "GET"->handle_get(Data);
+        true->{aborted,405}
+    end.
+
+handle(Data) ->
     [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),
     FileName=get_filename(Route),
@@ -104,15 +108,12 @@ handle(Data) ->
        end.
 
 
-                        
+
 handle_http11(Data) ->
    case parse_http:http2map(Data) of
    {aborted,Code} -> abort(Code);
-   {ok,Map} -> handle_headers(Map)
+   {ok,Map} -> handle_headers(Map);
+   true->io:fwrite("500 Internal Server Error ~n"),
+         io:fwrite("http2map() failure -- Unable to match ~n"),
+         {aborted,500}
    end.
-   
-
-            
-                    
-
-              

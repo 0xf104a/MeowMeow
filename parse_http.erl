@@ -22,7 +22,7 @@ http2map(Request) ->
      RLen=string:length(Request),
      if length(Header) < 3 -> {aborted,400};
         RLen>?max_request_length -> {aborted,413};
-        true-> Params = lists:delete(lists:nth(1,Lines),Lines), %%NOFIX:Normal if and function exit
+        true-> Params = lists:delete(lists:nth(1,Lines),Lines),
                Parsed = #{"method"=>lists:nth(1,Header),"route"=>lists:nth(2,Header),"http_ver"=>lists:nth(3,Header),"body"=>""},
                {ok,parse_params(Params,Parsed)}
     end.
