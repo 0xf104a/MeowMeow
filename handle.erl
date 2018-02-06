@@ -46,6 +46,34 @@ get_filename(Route) ->
        IndexExists -> IndexName;
        true -> ""
     end.
+
+handle_head(Data)->
+    [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
+    Route=unicode:characters_to_list(binary_to_list(BinRoute)),
+    FileName=get_filename(Route),
+    RouteInsecure=(string:rstr(Route,"..")/=0),
+    io:fwrite("~s ~s -- ",[maps:get("method",Data),maps:get("route",Data)]),
+    StrTime=get_time(),
+    if  RouteInsecure->{aborted,400};
+        FileName /= ""  ->
+        ContentLength=filelib:file_size(FileName),
+        if ContentLength>0 ->
+                io:fwrite("200 OK ~n"),
+                {ok,response:response_headers( #{"Date" => StrTime,
+                                            "Connection" => "keep-alive",
+                                            "Content-Length" => integer_to_list(ContentLength),
+                                            "Content-Type" => mime_by_fname(FileName),
+                                            "Server" => ?version},200),head};
+                true->io:fwrite("204 No Content ~n"),
+                      {ok,response:response_headers( #{"Date" => StrTime,
+                                            "Connection" => "keep-alive",
+                                            "Content-Length" => integer_to_list(ContentLength),
+                                            "Content-Type" => mime_by_fname(FileName),
+                                            "Server" => ?version},204),head}
+        end;
+        true->{aborted,404}
+      end.
+
 handle_get(Data)->
     [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),
@@ -75,39 +103,9 @@ handle_get(Data)->
 handle_headers(Data)->
     case maps:get("method",Data) of
         "GET"->handle_get(Data);
+        "HEAD"->handle_head(Data);
         true->{aborted,501}
     end.
-
-handle(Data) ->
-    [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
-    Route=unicode:characters_to_list(binary_to_list(BinRoute)),
-    FileName=get_filename(Route),
-    RouteInsecure=(string:rstr(Route,"..")/=0),
-    StrTime=get_time(),
-    if RouteInsecure->abort(400);
-       FileName /= ""  ->
-        {ok, FContent}=file:read_file(FileName),
-        Content=unicode:characters_to_list(binary_to_list(FContent)),
-        ContentLength=length(Content),
-        if ContentLength>0 ->
-                io:fwrite("200 OK ~n"),
-                response:response( #{"Date" => StrTime,
-                                    "Connection" => "keep-alive",
-                                    "Content-Length" => integer_to_list(ContentLength),
-                                    "Content-Type" => mime_by_fname(FileName),
-                                    "Server" => ?version},200,Content );
-            true->io:fwrite("204 No Content ~n"),
-                    response:response( #{"Date" => StrTime,
-                                        "Connection" => "keep-alive",
-                                        "Content-Length" => integer_to_list(ContentLength),
-                                        "Content-Type" => mime_by_fname(FileName),
-                                        "Server" => ?version},204,"")
-        end;
-       true -> abort(404)
-
-       end.
-
-
 
 handle_http11(Data) ->
    case parse_http:http2map(Data) of
