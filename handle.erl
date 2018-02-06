@@ -75,7 +75,7 @@ handle_get(Data)->
 handle_headers(Data)->
     case maps:get("method",Data) of
         "GET"->handle_get(Data);
-        true->{aborted,405}
+        true->{aborted,501}
     end.
 
 handle(Data) ->
@@ -111,7 +111,7 @@ handle(Data) ->
 
 handle_http11(Data) ->
    case parse_http:http2map(Data) of
-   {aborted,Code} -> abort(Code);
+   {aborted,Code} -> {aborted,Code};
    {ok,Map} -> handle_headers(Map);
    true->io:fwrite("500 Internal Server Error ~n"),
          io:fwrite("http2map() failure -- Unable to match ~n"),
