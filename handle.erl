@@ -2,7 +2,7 @@
 -export([handle_http11/1,abort/1,handle_headers/1]).
 -import(response,[response/3,get_desc/1]).
 -import(parse_http,[http2map/1,mime_by_fname/1]).
--define(version,"Ghost/1.0.0-prealpha-290118").
+-define(version,"Ghost/1.0.0-prealpha-70218").
 
 
 
@@ -46,7 +46,7 @@ get_filename(Route) ->
        IndexExists -> IndexName;
        true -> ""
     end.
-
+last
 handle_head(Data)->
     [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),
@@ -104,7 +104,7 @@ handle_headers(Data)->
     case maps:get("method",Data) of
         "GET"->handle_get(Data);
         "HEAD"->handle_head(Data);
-        true->{aborted,501}
+        _Else->{aborted,501}
     end.
 
 handle_http11(Data) ->
