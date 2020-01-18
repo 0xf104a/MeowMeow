@@ -3,3 +3,4 @@
 *.swo
 *.swn
 .DS_Store
+www/*

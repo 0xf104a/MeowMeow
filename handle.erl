@@ -46,7 +46,7 @@ get_filename(Route) ->
        IndexExists -> IndexName;
        true -> ""
     end.
-last
+
 handle_head(Data)->
     [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),

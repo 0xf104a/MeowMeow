@@ -1,4 +1,4 @@
--module(socket).
+-module(sock).
 -export([create_socket/1, socket_recv/2, socket_send/3, socket_shutdown/2,socket_accept/1,socket_recv_all/2,split_list/2]).
 -define(chunk_wait_timeout,10).
 

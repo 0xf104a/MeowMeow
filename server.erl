@@ -15,11 +15,11 @@ tup2list(_Tuple,_Pos,_Size) -> [].
 
 run(Port) ->
     io:fwrite("Starting up on port ~p ~n",[Port]),
-    Sock = socket:create_socket(Port),
+    Sock = sock:create_socket(Port),
     spawn(fun() -> accept(Sock) end).
 
 accept(Sock) ->
-    MSock = socket:socket_accept(Sock),
+    MSock = sock:socket_accept(Sock),
     Pid = spawn(fun() ->
                      loop(MSock)
                      end),
@@ -27,16 +27,16 @@ accept(Sock) ->
     accept(Sock).
 loop(Sock) ->
     %%inet:setopts(Sock, [{active, once}]),
-    Data=socket:socket_recv_all(Sock,""),
+    Data=sock:socket_recv_all(Sock,""),
     {ok, {Address, Port}} = inet:peername(Sock),
     io:fwrite("[~p.~p.~p.~p:~p]:",tup2list(Address) ++ [Port]),
     case handle_http11(Data) of
-         {aborted,Code} -> socket:socket_send(Sock,abort(Code),?CHUNK_SIZE);
-         {ok,Headers,head} -> socket:socket_send(Sock,Headers,?CHUNK_SIZE);
-         {ok,Headers,FileName} -> socket:socket_send(Sock,Headers,?CHUNK_SIZE),
+         {aborted,Code} -> sock:socket_send(Sock,abort(Code),?CHUNK_SIZE);
+         {ok,Headers,head} -> sock:socket_send(Sock,Headers,?CHUNK_SIZE);
+         {ok,Headers,FileName} -> sock:socket_send(Sock,Headers,?CHUNK_SIZE),
                               {ok, FContent}=file:read_file(FileName),
                               Content=unicode:characters_to_list(binary_to_list(FContent)),
-                              socket:socket_send(Sock,Content,?CHUNK_SIZE)
+                              sock:socket_send(Sock,Content,?CHUNK_SIZE)
     end.
 
     %%receive
