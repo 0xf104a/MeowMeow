@@ -2,7 +2,8 @@
 -export([handle_http11/1,abort/1,handle_headers/1]).
 -import(response,[response/3,get_desc/1]).
 -import(parse_http,[http2map/1,mime_by_fname/1]).
--define(version,"Ghost/1.0.0-prealpha-70218").
+-include_lib("kernel/include/file.hrl").
+-define(version,"Ghost/1.0.0-prealpha-140220").
 
 
 
@@ -37,6 +38,19 @@ abort(Code) ->
                         "Content-Type" => "text/html",
                         "Connection"=>"keep-alive",
                         "Server"=>?version},Code,Body).
+
+handle_file(_,_,no_file)->{aborted,404};
+handle_file(_,_,no_access)->{aborted,403};
+handle_file(FileName,_,empty_file)->{ok,response:response_headers( #{"Date" => get_time(),
+                                             "Connection" => "keep-alive",
+                                             "Content-Length" => integer_to_list(0),
+                                             "Content-Type" => mime_by_fname(FileName),
+                                             "Server" => ?version},204),FileName};
+handle_file(FileName,FSize,ok)->{ok,response:response_headers( #{"Date" => get_time(),
+                                            "Connection" => "keep-alive",
+                                            "Content-Length" => integer_to_list(FSize),
+                                            "Content-Type" => mime_by_fname(FileName),
+                                            "Server" => ?version},200),FileName}.
 get_filename(Route) ->
     FileName = "www"++Route,
     IndexName = "www"++Route++"/index.html",
@@ -44,7 +58,17 @@ get_filename(Route) ->
     IndexExists = filelib:is_regular(IndexName),
     if FileExists -> FileName;
        IndexExists -> IndexName;
-       true -> ""
+       true -> no_file
+    end.
+
+stat_file(no_file)->{0,no_file};
+stat_file(FName)->
+    {ok,FInfo}=file:read_file_info(FName),
+    Access =FInfo#file_info.access,
+    FSize = FInfo#file_info.size,
+    if (Access /= read) and (Access /= read_write)-> {0,no_access};
+       FSize == 0 -> {0,empty_file};
+       true -> {FSize, ok}
     end.
 
 handle_head(Data)->
@@ -80,26 +104,11 @@ handle_get(Data)->
     FileName=get_filename(Route),
     RouteInsecure=(string:rstr(Route,"..")/=0),
     io:fwrite("~s ~s -- ",[maps:get("method",Data),maps:get("route",Data)]),
-    StrTime=get_time(),
+    {FSize,Stat}=stat_file(FileName),
     if  RouteInsecure->{aborted,400};
-        FileName /= ""  ->
-        ContentLength=filelib:file_size(FileName),
-        if ContentLength>0 ->
-                io:fwrite("200 OK ~n"),
-                {ok,response:response_headers( #{"Date" => StrTime,
-                                            "Connection" => "keep-alive",
-                                            "Content-Length" => integer_to_list(ContentLength),
-                                            "Content-Type" => mime_by_fname(FileName),
-                                            "Server" => ?version},200),FileName};
-                true->io:fwrite("204 No Content ~n"),
-                      {ok,response:response_headers( #{"Date" => StrTime,
-                                            "Connection" => "keep-alive",
-                                            "Content-Length" => integer_to_list(ContentLength),
-                                            "Content-Type" => mime_by_fname(FileName),
-                                            "Server" => ?version},204),FileName}
-        end;
-        true->{aborted,404}
+        true->handle_file(FileName,FSize,Stat)
     end.
+
 handle_headers(Data)->
     case maps:get("method",Data) of
         "GET"->handle_get(Data);
