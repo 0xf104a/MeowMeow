@@ -1,9 +1,10 @@
-## THIS REPOSITORY IS NO MORE SUPPORTED ON GitHub
-# Why?
-I am stopping my work on github due it's acquirment by Microsoft.
-# Where it'll be supported
-I haven't decided platform to migrate yet.I'll write about it later.
-# Ghost-WebServer
-Simple webserver written on plain erlang
-
+# Ghost Web Server
+## Abstract
+This is simple web server written in plaing erlang.
+## Running
+Compile all the files using `erl` shell and then you could run it with following command:
+```
+1> server:run(8888).
+```
+Tested on `Erlang/OTP 22 [erts-10.5.6] [source] [64-bit] [smp:4:4] [ds:4:4:10] [async-threads:1] [hipe] [dtrace]`.
 
