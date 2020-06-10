@@ -41,12 +41,14 @@ abort(Code) ->
 
 handle_file(_,_,no_file)->{aborted,404};
 handle_file(_,_,no_access)->{aborted,403};
-handle_file(FileName,_,empty_file)->{ok,response:response_headers( #{"Date" => get_time(),
+handle_file(FileName,_,empty_file)->io:fwrite("204 No Content~n"),
+                                    {ok,response:response_headers( #{"Date" => get_time(),
                                              "Connection" => "keep-alive",
                                              "Content-Length" => integer_to_list(0),
                                              "Content-Type" => mime_by_fname(FileName),
                                              "Server" => ?version},204),FileName};
-handle_file(FileName,FSize,ok)->{ok,response:response_headers( #{"Date" => get_time(),
+handle_file(FileName,FSize,ok)->io:fwrite("200 OK~n"),
+                                {ok,response:response_headers( #{"Date" => get_time(),
                                             "Connection" => "keep-alive",
                                             "Content-Length" => integer_to_list(FSize),
                                             "Content-Type" => mime_by_fname(FileName),
