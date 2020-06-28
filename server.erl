@@ -25,6 +25,16 @@ accept(Sock) ->
                      end),
     gen_tcp:controlling_process(MSock, Pid),
     accept(Sock).
+
+send_chunks(Dev, Sock, Sz)->
+    case file:read(Dev, Sz) of
+         {ok, Data}->sock:socket_send(Sock,Data,?CHUNK_SIZE),
+		     send_chunks(Dev, Sock, Sz);
+         eof->done
+    end. 
+send_file(FName,Sock, ChunkSz)->
+    {ok, Dev} = file:open(FName,read), 
+    send_chunks(Dev, Sock, ChunkSz).   
 loop(Sock) ->
     %%inet:setopts(Sock, [{active, once}]),
     Data=sock:socket_recv_all(Sock,""),
@@ -34,9 +44,10 @@ loop(Sock) ->
          {aborted,Code} -> sock:socket_send(Sock,abort(Code),?CHUNK_SIZE);
          {ok,Headers,head} -> sock:socket_send(Sock,Headers,?CHUNK_SIZE);
          {ok,Headers,FileName} -> sock:socket_send(Sock,Headers,?CHUNK_SIZE),
-                              {ok, FContent}=file:read_file(FileName),
-                              Content=unicode:characters_to_list(binary_to_list(FContent)),
-                              sock:socket_send(Sock,Content,?CHUNK_SIZE)
+				  send_file(FileName, Sock, ?CHUNK_SIZE)
+                              %%{ok, FContent}=file:read_file(FileName),
+                              %%Content=unicode:characters_to_list(binary_to_list(FContent)),
+                              %%sock:socket_send(Sock,Content,?CHUNK_SIZE)
     end.
 
     %%receive
