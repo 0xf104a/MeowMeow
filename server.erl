@@ -30,7 +30,8 @@ send_chunks(Dev, Sock, Sz)->
     case file:read(Dev, Sz) of
          {ok, Data}->sock:socket_send(Sock,Data,?CHUNK_SIZE),
 		     send_chunks(Dev, Sock, Sz);
-         eof->done
+         eof->file:close(Dev),
+	      ok
     end. 
 send_file(FName,Sock, ChunkSz)->
     {ok, Dev} = file:open(FName,read), 
