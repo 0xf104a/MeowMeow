@@ -29,8 +29,13 @@ parse_section(Dev, R, SectionName)->
 	end.
 
 parse_access(FName)->
-	Dev=file:open(FName),
+	Dev=file:open(FName,read),
 	R=parse_section(Dev,{}, global),
 	file:close(Dev),
         R.
+
+get_access(FName)->
+	AccessFile=filaname:join([filename:dirname(FName),".access"]),
+	parse_access(FName).
+
 

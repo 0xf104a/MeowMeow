@@ -36,7 +36,7 @@ abort(Code) ->
    StrTime=get_time(),
    response:response( #{"Date" => StrTime,
                         "Content-Type" => "text/html",
-                        "Connection"=>"keep-alive",
+                        "Connection"=>"close",
                         "Server"=>?version},Code,Body).
 
 handle_file(_,_,no_file)->{aborted,404};
@@ -74,11 +74,11 @@ stat_file(FName)->
     end.
 
 handle_head(Data)->
-    [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
+    [BinRoute|Params] = re:split(maps:get(route,Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),
     FileName=get_filename(Route),
     RouteInsecure=(string:rstr(Route,"..")/=0),
-    io:fwrite("~s ~s -- ",[maps:get("method",Data),maps:get("route",Data)]),
+    io:fwrite("~s ~s -- ",[maps:get(method,Data),maps:get(route,Data)]),
     StrTime=get_time(),
     if  RouteInsecure->{aborted,400};
         FileName /= ""  ->
@@ -101,18 +101,18 @@ handle_head(Data)->
       end.
 
 handle_get(Data)->
-    [BinRoute|Params] = re:split(maps:get("route",Data),"\\?|\\#"),
+    [BinRoute|Params] = re:split(maps:get(route,Data),"\\?|\\#"),
     Route=unicode:characters_to_list(binary_to_list(BinRoute)),
     FileName=get_filename(Route),
     RouteInsecure=(string:rstr(Route,"..")/=0),
-    io:fwrite("~s ~s -- ",[maps:get("method",Data),maps:get("route",Data)]),
+    io:fwrite("~s ~s -- ",[maps:get(method,Data),maps:get(route,Data)]),
     {FSize,Stat}=stat_file(FileName),
     if  RouteInsecure->{aborted,400};
         true->handle_file(FileName,FSize,Stat)
     end.
 
 handle_headers(Data)->
-    case maps:get("method",Data) of
+    case maps:get(method,Data) of
         "GET"->handle_get(Data);
         "HEAD"->handle_head(Data);
         _Else->{aborted,501}
