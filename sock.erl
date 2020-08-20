@@ -1,7 +1,6 @@
 -module(sock).
 -export([create_socket/1, socket_recv/2, socket_send/3, socket_shutdown/2,socket_accept/1,socket_recv_all/2,split_list/2]).
 -define(chunk_wait_timeout,10).
-
 split_list(List, Max) ->
     element(1, lists:foldl(fun
         (E, {[Buff|Acc], C}) when C < Max ->
@@ -17,8 +16,8 @@ create_socket(Port) ->
    Sock.
 
 socket_recv(Sock, Timeout) -> %%Returns data
-  {ok,Data} = gen_tcp:recv(Sock, 0,Timeout),
-  Data.
+  Wrapped = gen_tcp:recv(Sock, 0,Timeout),
+  Wrapped.
 
 socket_recv_all(Sock, Received) -> %%FIXME:Fix timeout
   case gen_tcp:recv(Sock, 0,?chunk_wait_timeout) of

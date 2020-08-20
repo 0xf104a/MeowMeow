@@ -1,5 +1,5 @@
 -module(parse_http).
--export([http2map/1,mime_by_ext/1,mime_by_fname/1]).
+-export([http2map/1,mime_by_ext/1,mime_by_fname/1, update_lines/2, is_request_finished/1]).
 -define(max_request_length,10000).
 -define(mime_types_file,"mime.types").
 
@@ -16,12 +16,9 @@ parse_params(Params,Parsed)->
              parse_params(lists:delete(lists:nth(1,Params),Params),maps:merge(Parsed,param2map(CurParsed)))
 end.
 
-http2map(Request) ->
-     Lines = string:split(Request,"\r\n",all),
+http2map(Lines) ->
      Header = string:split(lists:nth(1,Lines)," ",all),
-     RLen=string:length(Request),
      if length(Header) < 3 -> {aborted,400};
-        RLen>?max_request_length -> {aborted,413};
         true-> Params = lists:delete(lists:nth(1,Lines),Lines),
                Parsed = #{method=>lists:nth(1,Header),route=>lists:nth(2,Header),http_ver=>lists:nth(3,Header),body=>""},
                {ok,parse_params(Params,Parsed)}
@@ -76,5 +73,26 @@ mime_by_fname(FName)->
     Splitted=string:split(FName,".",all),
     mime_by_ext(lists:nth(length(Splitted),Splitted)).
 
-     
+magic_merge(Cat1,"",Cat2)->
+     Cat1++Cat2;
+magic_merge(Cat1,Any,Cat2)->
+     lists:sublist(Cat1,length(Cat1)-1)++[Any]++lists:sublist(Cat2,2,length(Cat2)-1).
+magic_merge(List1, List2)-> 
+%% Merges 2 lists with concatting last element from List1
+%% and first element from List2
+    Cat1 = lists:last(List1),
+    Cat2 = lists:nth(1,List2),
+    New = Cat1++Cat2,
+    magic_merge(List1,New,List2).
+    
+update_lines(OldLines, Raw)->
+    Lines=string:split(Raw,"\r\n",all),
+    magic_merge(OldLines,Lines).
 
+is_request_finished(Lines) when length(Lines)<2 -> false;
+is_request_finished(Lines) ->
+    T0 = lists:nth(length(Lines), Lines),
+    T1 = lists:nth(length(Lines)-1, Lines),
+    if (T0 == <<>>) and (T1 == <<>>) -> true;
+       true -> false
+    end. 
