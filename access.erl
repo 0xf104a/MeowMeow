@@ -1,5 +1,5 @@
 -module(access).
--export([parse_access/1]).
+-export([parse_access/1,load_access/1,get_rules/1]).
 
 get_cmd("")->pass;
 get_cmd(Cmd)->
@@ -18,7 +18,7 @@ parse_line(Dev, {ok,Line})->
 		{"Route", [Name]}->{ok,[{Name,parse_section({ok,Dev}, [], Name)}]};
 		{"End", _}->finish;
 		{Key, Value}->{ok,[{Key,Value}]};
-                Any -> logging:error("get_cmd/1 returned unexpected result ~p",[Any]) 
+                Any -> logging:error("get_cmd/1 returned unexpected result ~p @ access:parse_line/2",[Any]) 
 	end;
 
 parse_line(_, eof)->finish.
@@ -29,7 +29,7 @@ parse_section({ok,Dev}, R, SectionName)->
 	case parse_line(Dev, Line) of
 		{ok, Data}->parse_section({ok,Dev},R++Data,SectionName);
 		finish->R;
-                Any->logging:error("parse_line/2 retuned unexpected result: ~p",[Any])
+                Any->logging:error("parse_line/2 retuned unexpected result: ~p @ access:parse_section/3",[Any])
 	end.
 
 parse_access(FName)->
@@ -37,7 +37,23 @@ parse_access(FName)->
 	R=parse_section(Dev,[], global),
 	file:close(Dev),
         R.
+        
+load_access(FName)->
+        logging:info("Loading access table from ~s", [FName]),
+        Access=parse_access(FName),
+        access=ets:new(access, [set,named_table]),
+        logging:debug("Created ETS access table"),
+        true=ets:insert(access, {table,Access}),
+        ok.
 
-get_access(FName)->
-	AccessFile=filaname:join([filename:dirname(FName),".access"]),
-	parse_access(FName).
+get_rules(_,[],Rules) -> Rules;
+get_rules(Route,Array, Rules) ->
+      [{Pattern, List}|T] = Array,
+      Stat = util:check_wildcard(Route,Pattern),
+      if Stat -> get_rules(Route,T,Rules++List);
+         true -> get_rules(Route,T,Rules)
+      end.
+
+get_rules(Route)->
+        [{table, Array}] = ets:lookup(access, table),
+        get_rules(Route,Array,[]).

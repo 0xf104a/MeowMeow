@@ -7,7 +7,7 @@ Route *..*
  Abort 403
 End
 
-Route /x-power
+Route /x-power/*
  Set-Header X-Power MeowMeow
 End
 
