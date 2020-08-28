@@ -1,6 +1,9 @@
+*.iml
+out/
 *.beam
 *.swp
 *.swo
 *.swn
 .DS_Store
 www/*
+.idea
