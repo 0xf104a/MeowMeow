@@ -35,11 +35,14 @@ rule_abort(Args, _) ->
 
 rule_no_content(Args, Response) ->
   {abort, 204}.
+rule_disallow(_, _) ->
+  {aborted, 403}.
 
 register_basic() ->
   logging:info("Registering basic rules"),
   register_rule("Abort", fun(Args, Any) -> rule_abort(Args, Any) end),
   register_rule("No-Content", fun(Args, Any) -> rule_no_content(Args, Any) end),
+  register_rule("Disallow", fun(Args, Any) -> rule_disallow(Args, Any) end),
   ok.
 
 

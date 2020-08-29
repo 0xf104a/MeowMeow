@@ -8,4 +8,4 @@
 %%%-------------------------------------------------------------------
 -author("p01ar").
 
--record(response, {code, headers = #{}}).
+-record(response, {request, code, headers = #{}}).

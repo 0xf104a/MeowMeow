@@ -4,23 +4,31 @@
 -import(parse_http, [http2map/1, mime_by_fname/1]).
 -include_lib("kernel/include/file.hrl").
 -include("config.hrl").
+-include("request.hrl").
+-include("response.hrl").
 -import(util, [get_time/0]).
 
 abort(Code) ->
   Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
-  io:fwrite("~p ~s ~n", [Code, get_desc(integer_to_list(Code))]),
   StrTime = get_time(),
   response:response(#{"Date" => StrTime,
     "Content-Type" => "text/html",
     "Connection" => "close",
     "Server" => ?version}, Code, Body).
 
+handle(R, Upstream)->
+  Route=R#response.request#request.route,
+  Rules=access:get_rules(Route),
+
 handle(Sock, Upstream, RequestLines) ->
   {ok, Peer} = socket:peername(Sock),
   case parse_http:parse_request(maps:get(addr, Peer), RequestLines) of
     bad_request ->
       logging:debug("Bad request -- responding"),
-      Upstream ! {send, abort(400)}
+      Upstream ! {send, abort(400)};
+    {ok, Request} ->
+      Response = #response{code = 200, request = Request},
+      handle(Response, Upstream)
   end.
 handler(Sock, Upstream, RequestLines) ->
   receive
