@@ -1,5 +1,6 @@
 -module(access).
--export([parse_access/1, load_access/1, get_rules/1]).
+-export([parse_access/1, load_access/1, get_rules/1, unload/0, reload/0]).
+-include("config.hrl").
 
 get_cmd("") -> pass;
 get_cmd(Cmd) ->
@@ -45,6 +46,15 @@ load_access(FName) ->
   logging:debug("Created ETS access table"),
   true = ets:insert(access, {table, Access}),
   ok.
+
+unload() ->
+  logging:info("Unloading access table"),
+  ets:delete(access).
+
+reload() ->
+  logging:info("Reloading access table"),
+  unload(),
+  load_access(?accessfile).
 
 get_rules(_, [], Rules) -> Rules;
 get_rules(Route, Array, Rules) ->

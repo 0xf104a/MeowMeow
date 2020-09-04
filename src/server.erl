@@ -1,5 +1,5 @@
 -module(server).
--export([run/1]).
+-export([run/1, run_synchronized/1]).
 -import(socket, [create_socket/1, socket_recv/2, socket_accept/3, socket_send/2, socket_recv_all/2]).
 -import(handle, [handle_http11/1, abort/1]).
 -import(parse_http, [http2map/1]).
@@ -43,8 +43,33 @@ listen(Port) ->
       {error, Reason}
   end.
 
+listen_synchronized(Port) ->
+  %% Does not create new process
+  Addr = #{addr => {0, 0, 0, 0}, family => inet, port => Port},
+  {ok, Sock} = socket:open(inet, stream, tcp),
+  case socket:bind(Sock, Addr) of
+    {ok, _} ->
+      R = socket:sockname(Sock),
+      ok = socket:listen(Sock),
+      socket:setopt(Sock, socket, reuseaddr, true),
+      socket:setopt(Sock, socket, reuseport, true),
+      logging:debug("Started listening"),
+      loop(Sock),
+      R;
+    {error, Reason} ->
+      logging:err("Failed to bind to 0.0.0.0:~p. Reason: ~s", [Port, Reason]),
+      {error, Reason}
+  end.
+
 run(Port) ->
   rules:init_rules(),
+  rules:register_basic(),
   access:load_access(?accessfile),
   listen(Port).
+
+run_synchronized(Port) ->
+  rules:init_rules(),
+  rules:register_basic(),
+  access:load_access(?accessfile),
+  listen_synchronized(Port).
 

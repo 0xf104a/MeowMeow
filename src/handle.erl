@@ -8,6 +8,7 @@
 -include("response.hrl").
 -import(util, [get_time/0]).
 
+
 abort(Code) ->
   Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
   StrTime = get_time(),
@@ -16,18 +17,42 @@ abort(Code) ->
     "Connection" => "close",
     "Server" => ?version}, Code, Body).
 
-handle(R, Upstream)->
-  Route=R#response.request#request.route,
-  Rules=access:get_rules(Route),
+do_rules([], Response) when Response#response.is_finished -> {finished, Response};
+do_rules([], Response) -> {ok, Response};
+do_rules(Rules, Response) ->
+  [{Rule, Args} | T] = Rules,
+  NewResponse = rules:execute_rule(Rule, Args, Response),
+  case NewResponse of
+    {aborted, Code} -> {abort, Code};
+    Any -> do_rules(T, Any)
+  end.
+
+handle(R, Upstream) ->
+  Route = R#response.request#request.route,
+  Request = R#response.request,
+  Rules = access:get_rules(Route),
+  logging:debug("Rules=~p", [Rules]),
+  Result = do_rules(Rules, R),
+  case Result of
+    {abort, Code} ->
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+      Upstream ! {send, abort(Code)};
+    {finished, Response} ->
+      Code = Response#response.code,
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))])
+  end.
+
 
 handle(Sock, Upstream, RequestLines) ->
   {ok, Peer} = socket:peername(Sock),
-  case parse_http:parse_request(maps:get(addr, Peer), RequestLines) of
+  Parsed = parse_http:parse_request(maps:get(addr, Peer), RequestLines),
+  case Parsed of
     bad_request ->
       logging:debug("Bad request -- responding"),
       Upstream ! {send, abort(400)};
     {ok, Request} ->
-      Response = #response{code = 200, request = Request},
+      Response = #response{code = 200, request = Request, upstream = Upstream},
+      logging:debug("Response=~p", [Response]),
       handle(Response, Upstream)
   end.
 handler(Sock, Upstream, RequestLines) ->

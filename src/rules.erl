@@ -8,7 +8,8 @@
 %%%-------------------------------------------------------------------
 -module(rules).
 -author("p01ar").
-
+-include("config.hrl").
+-include("response.hrl").
 
 %% API
 -export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0]).
@@ -26,15 +27,22 @@ register_rule(Rule, RuleHandler) ->
   ets:insert(rules, [{Rule, RuleHandler}]).
 
 execute_rule(Rule, Args, Response) ->
+  logging:debug("Execute rule: ~p ~p ~p", [Rule, Args, Response]),
   [{Rule, Handler}] = ets:lookup(rules, Rule),
   Handler(Args, Response).
 
 %% Basic rules
 rule_abort(Args, _) ->
-  {abort, list_to_integer(lists:nth(1, Args))}.
+  {aborted, list_to_integer(lists:nth(1, Args))}.
 
-rule_no_content(Args, Response) ->
-  {abort, 204}.
+rule_no_content(_, Response) ->
+  StrTime = util:get_time(),
+  R = response:response_headers(
+    #{"Date" => StrTime,
+      "Connection" => "close",
+      "Server" => ?version}, 204),
+  Response#response.upstream ! {send, R},
+  Response#response{is_finished = true}.
 rule_disallow(_, _) ->
   {aborted, 403}.
 

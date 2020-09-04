@@ -1,11 +1,14 @@
+#!/usr/bin/env escript
 %%%-------------------------------------------------------------------
 %%% @author p01ar
 %%% @copyright (C) 2020, Polar Group
 %%% @doc
-%%%  response record definition
+%%%  Docker bootscript for MeowMeow webserver
 %%% @end
-%%% Created : 28. авг. 2020 14:28
+%%% Created : 04. сент. 2020 14:04
 %%%-------------------------------------------------------------------
+-module(boot).
 -author("p01ar").
 
--record(response, {request, code, upstream = bad, is_finished = false, headers = #{}}).
+main(_) ->
+  server:run_synchronized(8888).
