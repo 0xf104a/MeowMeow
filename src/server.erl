@@ -74,7 +74,7 @@ run_synchronized(Port) ->
   listen_synchronized(Port).
 
 start() ->
-  run(8888).
+  run_synchronized(8888).
 
 stop() ->
   init:stop().
