@@ -5,7 +5,7 @@ COPY src/* ./
 RUN erlc *.erl
 COPY config/routes.conf routes.conf
 COPY boot.escript boot.escript
-RUN chmod 755 boot.erl
+RUN chmod 755 boot.escript
 
 EXPOSE 8888
 ENTRYPOINT escript boot.escript
