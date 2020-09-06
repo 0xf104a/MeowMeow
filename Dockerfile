@@ -4,9 +4,9 @@ FROM erlang:23.0-alpine
 COPY src/* ./
 RUN erlc *.erl
 COPY config/routes.conf routes.conf
-COPY boot.erl boot.erl
+COPY boot.escript boot.escript
 RUN chmod 755 boot.erl
 
 EXPOSE 8888
-ENTRYPOINT escript boot.erl
+ENTRYPOINT escript boot.escript
 

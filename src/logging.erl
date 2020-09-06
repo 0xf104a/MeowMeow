@@ -8,11 +8,11 @@
 -define(BOLD, "\033[1m").
 
 log_write(Level, Colour, Msg) ->
-  io:fwrite("~s~s~s~s~s|~s:~s~s~n", [Colour, ?BOLD, Level, ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]).
+  io:fwrite("\r~s~s~s~s~s|~s:~s~s~n", [Colour, ?BOLD, Level, ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]).
 
 log_write(Level, Colour, MsgFmt, Args) ->
   Msg = lists:flatten(io_lib:format(MsgFmt, Args)),
-  io:fwrite("~s~s~s~s~s|~s:~s~s~n", [Colour, ?BOLD, Level, ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]).
+  io:fwrite("\r~s~s~s~s~s|~s:~s~s~n", [Colour, ?BOLD, Level, ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]).
 
 info(Msg) ->
   log_write("INFO ", ?BLUE, Msg).
