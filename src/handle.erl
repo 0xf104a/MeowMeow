@@ -1,12 +1,24 @@
 -module(handle).
--export([abort/1, handler_start/1]).
--import(response, [response/3, get_desc/1]).
+-export([abort/1, handler_start/1, send_file/3]).
+-import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1]).
+-import(util, [get_time/0]).
 -include_lib("kernel/include/file.hrl").
 -include("config.hrl").
 -include("request.hrl").
 -include("response.hrl").
--import(util, [get_time/0]).
+
+send_chunks(Dev, Upstream, Sz) ->
+  case file:read(Dev, Sz) of
+    {ok, Data} ->
+      Upstream ! {send, Data},
+      send_chunks(Dev, Upstream, Sz);
+    eof -> ok
+  end.
+
+send_file(FName, Upstream, ChunkSz) ->
+  {ok, Dev} = file:open(FName, read),
+  send_chunks(Dev, Upstream, ChunkSz).
 
 
 abort(Code) ->
@@ -17,11 +29,13 @@ abort(Code) ->
     "Connection" => "close",
     "Server" => ?version}, Code, Body).
 
-do_rules([], Response) when Response#response.is_finished -> {finished, Response};
+do_rules(_, Response) when Response#response.is_finished -> {finished, Response}; %% Response was sent
+do_rules(_, Response) when Response#response.is_done -> {done, Response}; %% Response is ready to be sent by handler
 do_rules([], Response) -> {ok, Response};
 do_rules(Rules, Response) ->
   [{Rule, Args} | T] = Rules,
   NewResponse = rules:execute_rule(Rule, Args, Response),
+  logging:debug("New response: ~p", [NewResponse]),
   case NewResponse of
     {aborted, Code} -> {abort, Code};
     Any -> do_rules(T, Any)
@@ -39,7 +53,14 @@ handle(R, Upstream) ->
       Upstream ! {send, abort(Code)};
     {finished, Response} ->
       Code = Response#response.code,
-      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))])
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
+    {done, Response} ->
+      Headers = Response#response.headers,
+      Code = Response#response.code,
+      Body = Response#response.body,
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+      Upstream ! {send, response:response(Headers, Code, Body)}
+
   end.
 
 

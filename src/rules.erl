@@ -10,7 +10,7 @@
 -author("p01ar").
 -include("config.hrl").
 -include("response.hrl").
-
+-import(response, [update_headers/2]).
 %% API
 -export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0]).
 
@@ -27,7 +27,6 @@ register_rule(Rule, RuleHandler) ->
   ets:insert(rules, [{Rule, RuleHandler}]).
 
 execute_rule(Rule, Args, Response) ->
-  logging:debug("Execute rule: ~p ~p ~p", [Rule, Args, Response]),
   [{Rule, Handler}] = ets:lookup(rules, Rule),
   Handler(Args, Response).
 
@@ -37,12 +36,13 @@ rule_abort(Args, _) ->
 
 rule_no_content(_, Response) ->
   StrTime = util:get_time(),
-  R = response:response_headers(
-    #{"Date" => StrTime,
-      "Connection" => "close",
-      "Server" => ?version}, 204),
-  Response#response.upstream ! {send, R},
-  Response#response{is_finished = true}.
+  Headers = #{
+    "Connection" => "close",
+    "Server" => ?version,
+    "Date" => StrTime
+  },
+  Response#response{is_done = true, code = 204, body = "", headers = update_headers(Response, Headers)}.
+
 rule_disallow(_, _) ->
   {aborted, 403}.
 

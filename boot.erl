@@ -11,4 +11,5 @@
 -author("p01ar").
 
 main(_) ->
-  server:run_synchronized(8888).
+  server:run(8888),
+  shell:start().

@@ -1,5 +1,6 @@
 -module(response).
--export([response/3, get_desc/1, response_headers/2, do_response_headers/1, response_error/1]).
+-export([response/3, get_desc/1, response_headers/2, do_response_headers/1, response_error/1, set_header/3,
+  set_headers/2, update_headers/2]).
 -include("config.hrl").
 -include("response.hrl").
 
@@ -97,6 +98,14 @@ response_error(Code) ->
       "Content-Type" => "text/html"}
   }.
 
+set_header(Response, Header, Value) ->
+  Response#response{headers = maps:merge(Response#response.headers, #{Header => Value})}.
+
+set_headers(Response, Headers) ->
+  Response#response{headers = maps:merge(Response#response.headers, Headers)}.
+
+update_headers(Response, Headers) ->
+  maps:merge(Response#response.headers, Headers).
 
 
    

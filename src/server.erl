@@ -1,5 +1,5 @@
 -module(server).
--export([run/1, run_synchronized/1]).
+-export([run/1, run_synchronized/1, start/0]).
 -import(socket, [create_socket/1, socket_recv/2, socket_accept/3, socket_send/2, socket_recv_all/2]).
 -import(handle, [handle_http11/1, abort/1]).
 -import(parse_http, [http2map/1]).
@@ -35,7 +35,7 @@ listen(Port) ->
       ok = socket:listen(Sock),
       socket:setopt(Sock, socket, reuseaddr, true),
       socket:setopt(Sock, socket, reuseport, true),
-      logging:debug("Started listening"),
+      logging:info("Listening on port ~p", [Port]),
       spawn(fun() -> loop(Sock) end),
       R;
     {error, Reason} ->
@@ -53,7 +53,7 @@ listen_synchronized(Port) ->
       ok = socket:listen(Sock),
       socket:setopt(Sock, socket, reuseaddr, true),
       socket:setopt(Sock, socket, reuseport, true),
-      logging:debug("Started listening"),
+      logging:info("Listening on port ~p", [Port]),
       loop(Sock),
       R;
     {error, Reason} ->
@@ -72,4 +72,7 @@ run_synchronized(Port) ->
   rules:register_basic(),
   access:load_access(?accessfile),
   listen_synchronized(Port).
+
+start() ->
+  run(8888).
 
