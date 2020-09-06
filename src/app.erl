@@ -1,7 +1,8 @@
 %%%-------------------------------------------------------------------
-%%% @author andrezay
-%%% @copyright (C) 2020, <COMPANY>
+%%% @author p01ar
+%%% @copyright (C) 2020, Polar Group
 %%% @doc
+%%%   Application unit for MeowMeow webserver
 %%% @end
 %%%-------------------------------------------------------------------
 -module(app).

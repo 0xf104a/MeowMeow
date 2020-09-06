@@ -13,11 +13,16 @@ tup2list(Tuple, Pos, Size) when Pos =< Size ->
 tup2list(_Tuple, _Pos, _Size) -> [].
 
 handle_connection(Sock) ->
-  {ok, Addr} = socket:peername(Sock),
-  logging:debug("Addr = ~p @server.erl:19", [Addr]),
-%%    logging:debug("Accepted connection from ~p.~p.~p.~p:~p",tup2list(Address) ++ [Port]),
-  PidHandler = spawn(fun() -> handle:handler_start(Sock) end),
-  spawn(fun() -> io_proxy:io_proxy_tcp_start(Sock, PidHandler) end).
+  case socket:peername(Sock) of
+    {ok, Addr} ->
+      logging:debug("Addr = ~p @server.erl:19", [Addr]),
+      PidHandler = spawn(fun() -> handle:handler_start(Sock) end),
+      spawn(fun() -> io_proxy:io_proxy_tcp_start(Sock, PidHandler) end);
+    {error, enotconn} ->
+      logging:warn("Unexpected disconnect of a client. Maybe a port scan?");
+    {error, Any} ->
+      logging:err("Error getting peername: ~p", [Any])
+  end.
 
 loop(Sock) ->
   logging:debug("Entered loop"),
