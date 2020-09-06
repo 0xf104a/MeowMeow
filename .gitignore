@@ -8,3 +8,4 @@ out/
 www/*
 .idea
 _build
+rebar.lock

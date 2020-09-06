@@ -11,6 +11,6 @@
 -define(CHUNK_SIZE, 2048).
 -define(TIMEOUT, 1000).
 -define(version, "MeowMeow/1.02-alpha-40920").
--define(accessfile, "/tmp/routes.conf").
+-define(accessfile, "/etc/MeowMeow/routes.conf").
 -define(max_request_length, 10000).
 -define(mime_types_file, "mime.types").
