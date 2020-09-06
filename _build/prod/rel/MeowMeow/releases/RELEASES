@@ -1,6 +1,0 @@
-%% coding: utf-8
-[{release,"MeowMeow","1.02-alpha-60920","11.0.3",
-          [{kernel,"7.0","./lib/kernel-7.0"},
-           {stdlib,"3.13","./lib/stdlib-3.13"},
-           {app,"1.02-alpha-60920","./lib/app-1.02-alpha-60920"}],
-          permanent}].

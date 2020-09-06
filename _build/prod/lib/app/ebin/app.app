@@ -1,9 +1,0 @@
-{application,app,
-             [{description,"MeowMeow"},
-              {vsn,"1.02-alpha-60920"},
-              {modules,[access,app,app_sup,handle,io_proxy,logging,parse_http,
-                        response,rules,server,sock,util]},
-              {registered,[app_sup]},
-              {applications,[kernel,stdlib]},
-              {mod,{dockerwatch_app,[]}},
-              {env,[]}]}.

@@ -1,5 +1,5 @@
 {application, app, [
-  {description, "MeowMeow"},
+  {description, "A tiny webserver written in erlang"},
   {vsn, "1.02-alpha-60920"},
   {modules, []},
   {registered, [app_sup]},
