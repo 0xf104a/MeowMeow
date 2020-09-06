@@ -1,0 +1,12 @@
+{application, app, [
+  {description, "MeowMeow"},
+  {vsn, "1.02-alpha-60920"},
+  {modules, []},
+  {registered, [app_sup]},
+  {applications, [
+    kernel,
+    stdlib
+  ]},
+  {mod, {dockerwatch_app, []}},
+  {env, []}
+]}.

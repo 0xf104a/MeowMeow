@@ -1,5 +1,5 @@
 -module(server).
--export([run/1, run_synchronized/1, start/0]).
+-export([run/1, run_synchronized/1, start/0, stop/0]).
 -import(socket, [create_socket/1, socket_recv/2, socket_accept/3, socket_send/2, socket_recv_all/2]).
 -import(handle, [handle_http11/1, abort/1]).
 -import(parse_http, [http2map/1]).
@@ -76,3 +76,5 @@ run_synchronized(Port) ->
 start() ->
   run(8888).
 
+stop() ->
+  init:stop().

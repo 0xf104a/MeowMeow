@@ -12,4 +12,4 @@
 
 main(_) ->
   server:run(8888),
-  shell:server(false, false).
+  shell:server(false, true).
