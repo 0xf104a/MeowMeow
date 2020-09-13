@@ -37,7 +37,6 @@ rule_abort(Args, _) ->
 rule_no_content(_, Response) ->
   StrTime = util:get_time(),
   Headers = #{
-    "Connection" => "close",
     "Server" => ?version,
     "Date" => StrTime
   },
