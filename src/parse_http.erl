@@ -1,5 +1,6 @@
 -module(parse_http).
--export([http2map/1, mime_by_ext/1, mime_by_fname/1, update_lines/2, is_request_finished/1, make_request/1, parse_request/2]).
+-export([http2map/1, mime_by_ext/1, mime_by_fname/1, update_lines/2, is_request_finished/1, make_request/1, parse_request/2, is_close/1]).
+-import(util,[sget/2]).
 -include("config.hrl").
 -include("request.hrl").
 
@@ -112,3 +113,12 @@ parse_request(SrcAddr, Lines) ->
       Route = maps:get(route, Map),
       {ok, #request{src_addr = SrcAddr, route = Route, header = Map, method = Method}}
   end.
+
+
+is_close(Request) ->
+  case sget("Connection", Request#request.header) of
+    {badkey, "Connection"} -> false;
+    "close" -> true;
+    "keep-alive" -> false
+  end.
+

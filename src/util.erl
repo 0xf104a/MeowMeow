@@ -1,5 +1,6 @@
 -module(util).
--export([get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1]).
+-export([get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, pretty_addr/1]).
+-include("config.hrl").
 
 %% This part of code converts wildcards to regex
 %% It is required since erlang can not match wildcards to strings
@@ -60,3 +61,14 @@ get_time() ->
   {{Year, Month, Day}, {Hour, Minute, Second}} = erlang:universaltime(),
   WeekDay = maps:get(calendar:day_of_the_week(Year, Month, Day), Days),
   lists:flatten(io_lib:format("~s, ~2..0w  ~s ~4..0w ~2..0w:~2..0w:~2..0w GMT", [WeekDay, Day, maps:get(Month, Months), Year, Hour, Minute, Second])).
+%% Secure map get
+sget(Key, Map) ->
+  IsKey = maps:is_key(Key, Map),
+  if IsKey ->
+    maps:get(Key, Map);
+    true ->
+      {badkey, Key}
+  end.
+
+pretty_addr(Addr) ->
+  lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).

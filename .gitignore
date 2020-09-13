@@ -9,3 +9,4 @@ www/*
 .idea
 _build
 rebar.lock
+*.dump

@@ -15,4 +15,5 @@ start(_StartType, _StartArgs) ->
   app_sup:start_link().
 
 stop(_State) ->
+  logging:info("Stopping..."),
   ok.

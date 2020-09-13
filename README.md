@@ -10,3 +10,7 @@ Tested on `Erlang/OTP 22 [erts-10.5.6] [source] [64-bit] [smp:4:4] [ds:4:4:10] [
 
 ## Using
 Put your files into `www` files. They would be served as if `www` was the root dir. File `index.html` would be displayed as defualt if it does exist.
+
+## Code copyrighting
+The code copyrightings defined in the begging of the files are not legal advice and purposed for internal use only. 
+All code licensed under MIT license.

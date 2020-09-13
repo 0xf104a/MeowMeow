@@ -26,7 +26,6 @@ parse_line(_, eof) -> finish.
 
 parse_section({ok, Dev}, R, SectionName) ->
   Line = file:read_line(Dev),
-  logging:debug("Parsing ~p", [Line]),
   case parse_line(Dev, Line) of
     {ok, Data} -> parse_section({ok, Dev}, R ++ Data, SectionName);
     finish -> R;
