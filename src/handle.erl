@@ -31,14 +31,17 @@ abort(Code) ->
   response:response(
     #{"Date" => StrTime,
       "Content-Type" => "text/html",
+      "Content-Length" => integer_to_list(length(Body)),
       "Connection" => "close",
       "Server" => ?version}, Code, Body).
 
 abort("HEAD", Code) ->
+  Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
   StrTime = get_time(),
   response:response_headers(
     #{"Date" => StrTime,
       "Content-Type" => "text/html",
+      "Content-Length" => integer_to_list(length(Body)),
       "Connection" => "close",
       "Server" => ?version}, Code);
 
