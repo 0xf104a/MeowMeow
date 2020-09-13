@@ -5,7 +5,6 @@ out/
 *.swo
 *.swn
 .DS_Store
-www/*
 .idea
 _build
 rebar.lock
