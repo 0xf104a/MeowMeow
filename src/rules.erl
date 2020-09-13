@@ -40,6 +40,7 @@ rule_no_content(_, Response) ->
     "Server" => ?version,
     "Date" => StrTime
   },
+  logging:debug("Old=~p",[Response#response.headers]),
   Response#response{is_done = true, code = 204, body = "", headers = update_headers(Response, Headers)}.
 
 rule_disallow(_, _) ->

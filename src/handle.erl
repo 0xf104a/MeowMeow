@@ -74,9 +74,9 @@ set_keepalive(Response) ->
   Request = Response#response.request,
   NeedsClose = is_close(Request),
   if NeedsClose ->
-    set_header(Response, "Connection", "keep-alive");
+    set_header(Response, "Connection", "close");
     true ->
-      Response
+      set_header(Response, "Connection", "keep-alive")
   end.
 
 get_filename(XRoute) ->
@@ -148,6 +148,7 @@ handle(Resp, Upstream) ->
   Request = Resp#response.request,
   Rules = access:get_rules(Route),
   R = set_keepalive(Resp),
+  logging:debug("R=~p", [R]),
   logging:debug("Rules=~p", [Rules]),
   Result = do_rules(Rules, R),
   case Result of
