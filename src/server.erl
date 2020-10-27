@@ -67,19 +67,21 @@ listen_synchronized(Port) ->
   end.
 
 run(Port) ->
+  configuration:load(),
   rules:init_rules(),
   rules:register_basic(),
   access:load_access(?accessfile),
   listen(Port).
 
 run_synchronized(Port) ->
-  rules:init_rules(),
-  rules:register_basic(),
-  access:load_access(?accessfile),
   listen_synchronized(Port).
 
 start() ->
-  run_synchronized(8888).
+  configuration:load(),
+  rules:init_rules(),
+  rules:register_basic(),
+  access:load_access(?accessfile),
+  run_synchronized(configuration:get("ListenPort", int)).
 
 stop() ->
   init:stop().

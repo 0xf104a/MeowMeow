@@ -17,3 +17,5 @@
 -define(docdir, "/var/www/").
 -define(chunk_size, 1400).
 -define(timeout, 10000).
+-define(configfile, "/etc/MeowMeow/meow.conf").
+-define(defconf, #{"LogLevel" => "0", "KeepAlive"=> "10000", "ListenPort"=>"80"}). %% Default configuration

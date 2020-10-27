@@ -11,18 +11,18 @@
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
 
-send_chunks(Dev, Upstream, Sz) ->
+send_chunks(Dev, Sock, Sz) ->
   case file:read(Dev, Sz) of
     {ok, Data} ->
-      Upstream ! {send, Data},
-      send_chunks(Dev, Upstream, Sz);
+      io_proxy:tcp_send(Sock, Data),
+      send_chunks(Dev, Sock, Sz);
     eof -> ok
   end.
 
-send_file(FName, Upstream, ChunkSz) ->
+send_file(FName, Sock, ChunkSz) ->
   logging:debug("Sending file: ~p", [FName]),
   {ok, Dev} = file:open(FName, read),
-  send_chunks(Dev, Upstream, ChunkSz).
+  send_chunks(Dev, Sock, ChunkSz).
 
 
 abort(Code) ->
@@ -112,7 +112,9 @@ handle_file(Response, Upstream, FName) ->
   logging:debug("Response=~p", [Response]),
   log_response(Response#response.request, 200),
   Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)},
-  send_file(FName, Upstream, ?chunk_size).
+  Upstream ! cancel_tmr,
+  send_file(FName, Response#response.socket, ?chunk_size),
+  Upstream ! set_tmr.
 
 handle_file(Response, Upstream) ->
   Route = Response#response.request#request.route,
@@ -168,8 +170,7 @@ handle(Resp, Upstream) ->
     {ok, Response} ->
       handle_file(Response, Upstream)
   end,
-  close_connection(Request, Upstream),
-  ok.
+  close_connection(Request, Upstream).
 
 
 handle(Sock, Upstream, RequestLines) ->
@@ -178,12 +179,14 @@ handle(Sock, Upstream, RequestLines) ->
   case Parsed of
     bad_request ->
       logging:debug("Bad request -- responding"),
-      Upstream ! {send, abort(400)};
+      Upstream ! {send, abort(400)},
+      ok;
     {ok, Request} ->
-      Response = #response{code = 200, request = Request, upstream = Upstream},
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
       logging:debug("Response=~p", [Response]),
       handle(Response, Upstream)
   end.
+
 handler(Sock, Upstream, RequestLines) ->
   receive
     {data, Data} ->
@@ -192,11 +195,21 @@ handler(Sock, Upstream, RequestLines) ->
       Finished = parse_http:is_request_finished(Lines),
       if Finished ->
         logging:debug("Finished processing request"),
-        handle(Sock, Upstream, Lines),
-        exit(done);
+        case handle(Sock, Upstream, Lines) of
+          not_closed ->
+            Upstream ! recv, %% Notify that connection is keep-alive -- need wait for packet
+            Upstream ! set_tmr, %% ask to reset keep-alive timer
+            handler(Sock, Upstream, [""]);
+          ok ->
+            exit(done)
+        end;
         true -> ok
       end,
       handler(Sock, Upstream, Lines);
+    closed -> %% Connection was closed, does not need to do anything
+      exit(closed);
+    timeout -> %% Timed-out waiting. Exit gracefully
+      exit(timeout);
     Any ->
       logging:err("Recieved bad message @ handle:handler/3: ~p", [Any])
   end.

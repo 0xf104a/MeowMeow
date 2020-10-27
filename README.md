@@ -1,4 +1,4 @@
-# Ghost Web Server
+# MeowMeow webserver (formerly Ghost WebServer)
 ## Abstract
 This is simple web server written in plaing erlang.
 ## Running
