@@ -26,10 +26,14 @@ handle_connection(Sock) ->
 
 loop(Sock) ->
   logging:debug("Entered loop"),
-  {ok, Socket} = socket:accept(Sock),
-  logging:debug("Entering handle"),
-  handle_connection(Socket),
-  loop(Sock).
+  case socket:accept(Sock) of
+    {ok, Socket} ->
+  	logging:debug("Entering handle"),
+  	handle_connection(Socket),
+  	loop(Sock);
+    Any ->
+        logging:err("Accept failed: ~p @ server:loop/1", [Any])
+   end.
 
 listen(Port) ->
   Addr = #{addr => {0, 0, 0, 0}, family => inet, port => Port},

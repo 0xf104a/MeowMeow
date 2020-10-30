@@ -21,8 +21,10 @@ send_chunks(Dev, Sock, Sz) ->
 
 send_file(FName, Sock, ChunkSz) ->
   logging:debug("Sending file: ~p", [FName]),
-  {ok, Dev} = file:open(FName, read),
-  send_chunks(Dev, Sock, ChunkSz).
+  case file:open(FName, read) of
+    {ok, Dev} -> send_chunks(Dev, Sock, ChunkSz);
+    Any -> logging:err("Unexpected result while opening the file ~s: ~p",[FName, Any])
+  end.
 
 
 abort(Code) ->

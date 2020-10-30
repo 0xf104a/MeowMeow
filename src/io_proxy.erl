@@ -7,8 +7,10 @@ tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
   ok = socket:send(Sock, Data);
 tcp_send(Sock, Data) ->
   {H, T} = lists:split(?chunk_size, Data),
-  ok = socket:send(Sock, H),
-  tcp_send(Sock, T).
+  case socket:send(Sock, H) of
+       ok -> tcp_send(Sock, T);
+       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any])
+  end.
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
   timer:cancel(Ref).
@@ -40,9 +42,11 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
           logging:err("Error while receiving: ~p", [Other])
       end;
     cancel_tmr ->
+      logging:debug("Cancelled TmRef @ io_proxy_tcp/3"),
       cancel_ref(TmRef);
     set_tmr ->
       {ok, TRef} = send_after(?timeout, self(), timeout),
+      logging:debug("Setted TmRef @ io_proxy_tcp/3"),
       io_proxy_tcp(Sock, Handler, TRef);
     close ->
       {ok, Addr} = socket:peername(Sock),
@@ -51,10 +55,15 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       cancel_ref(TmRef),
       exit(requested);
     timeout ->
-      {ok, Addr} = socket:peername(Sock),
-      logging:info("Killing connection with ~p", [util:pretty_addr(Addr)]),
-      socket:close(Sock),
-      exit(timeout);
+      case socket:peername(Sock) of
+           {ok, Addr} ->
+      		logging:info("Killing connection with ~p", [util:pretty_addr(Addr)]),
+      		socket:close(Sock),
+      		cancel_ref(TmRef),
+      		exit(timeout);
+           {error, Err} ->
+ 		logging:err("Peername error while handling timeout: ~p @ io_porxy_tcp/3", [Err])
+      end;
     Any ->
       logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/2", [Any])
   end,
