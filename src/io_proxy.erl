@@ -1,6 +1,6 @@
 -module(io_proxy).
 -export([io_proxy_tcp_start/2, tcp_send/2]).
--import(timer, [send_after/3]).
+-import(erlang, [send_after/3]).
 -include("config.hrl").
 
 tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
@@ -18,19 +18,19 @@ tcp_send(Sock, Data) ->
   end.
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
-  timer:cancel(Ref).
+  erlang:cancel_timer(Ref).
 io_proxy_tcp(Sock, Handler, TmRef) ->
   receive
     {recv, Size} ->
       {ok, Data} = socket:recv(Sock, Size),
       cancel_ref(TmRef),
       Handler ! {data, Data},
-      {ok, TRef} = send_after(?timeout, self(), timeout),
+      TRef = send_after(?timeout, self(), timeout),
       io_proxy_tcp(Sock, Handler, TRef);
     {send, Data} ->
       cancel_ref(TmRef),
       ok=tcp_send(Sock, Data),
-      {ok, TRef} = send_after(?timeout, self(), timeout),
+      TRef = send_after(?timeout, self(), timeout),
       io_proxy_tcp(Sock, Handler, TRef);
     recv ->
       case socket:recv(Sock, 0, ?timeout) of
@@ -50,7 +50,7 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       logging:debug("Cancelled TmRef @ io_proxy_tcp/3"),
       cancel_ref(TmRef);
     set_tmr ->
-      {ok, TRef} = send_after(?timeout, self(), timeout),
+      TRef = send_after(?timeout, self(), timeout),
       logging:debug("Setted TmRef @ io_proxy_tcp/3"),
       io_proxy_tcp(Sock, Handler, TRef);
     close ->
@@ -66,7 +66,7 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
     timeout ->
       case socket:peername(Sock) of
            {ok, Addr} ->
-      		logging:info("Killing connection with ~p", [util:pretty_addr(Addr)]),
+      		logging:info("Killing connection with ~p due to timeout", [util:pretty_addr(Addr)]),
       		socket:close(Sock),
       		cancel_ref(TmRef),
       		exit(timeout);
@@ -74,10 +74,11 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
  		logging:err("Peername error while handling timeout: ~p @ io_porxy_tcp/3", [Err])
       end;
     Any ->
-      logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/2", [Any])
+      logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/3", [Any])
   end,
   io_proxy_tcp(Sock, Handler, TmRef).
 
 io_proxy_tcp_start(Sock, Handler) ->
   Handler ! {upstream, self()},
-  io_proxy_tcp(Sock, Handler, not_set).
+  TRef = send_after(?timeout, self(), timeout),
+  io_proxy_tcp(Sock, Handler, TRef).
