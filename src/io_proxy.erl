@@ -4,7 +4,10 @@
 -include("config.hrl").
 
 tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
-  ok = socket:send(Sock, Data);
+  case socket:send(Sock, Data) of
+       ok -> ok;
+       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any])
+  end;
 tcp_send(Sock, Data) ->
   {H, T} = lists:split(?chunk_size, Data),
   case socket:send(Sock, H) of

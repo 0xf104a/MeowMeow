@@ -46,11 +46,16 @@ rule_no_content(_, Response) ->
 rule_disallow(_, _) ->
   {aborted, 403}.
 
+rule_set_header(Arg, Response) ->
+  [Header|Value] = string:split(Arg, " "),
+  Response#response{headers = update_headers(Response, #{Header => Value})}.
+
 register_basic() ->
   logging:info("Registering basic rules"),
-  register_rule("Abort", fun(Args, Any) -> rule_abort(Args, Any) end),
-  register_rule("No-Content", fun(Args, Any) -> rule_no_content(Args, Any) end),
-  register_rule("Disallow", fun(Args, Any) -> rule_disallow(Args, Any) end),
+  register_rule("Abort", fun(Args, Resp) -> rule_abort(Args, Resp) end),
+  register_rule("No-Content", fun(Args, Resp) -> rule_no_content(Args, Resp) end),
+  register_rule("Disallow", fun(Args, Resp) -> rule_disallow(Args, Resp) end),
+  register_rule("Set-Header", fun(Args, Resp) -> rule_set_header(Args, Resp) end), 
   ok.
 
 
