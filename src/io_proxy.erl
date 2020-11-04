@@ -1,6 +1,6 @@
 -module(io_proxy).
 -export([io_proxy_tcp_start/2, tcp_send/2]).
-%%-import(erlang, [send_after/3]).
+-import(erlang, [send_after/3]).
 -include("config.hrl").
 
 tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
@@ -17,14 +17,14 @@ tcp_send(Sock, Data) ->
               {error, Any}
   end.
 
-send_after(Time, Dest, Msg)->
-    Ref=erlang:send_after(Time, Dest, Msg),
-    logging:debug("Setted ref=~p",[Ref]),
-    Ref.
+%%send_after(Time, Dest, Msg)->
+%%    Ref=erlang:send_after(Time, Dest, Msg),
+%%    logging:debug("Setted ref=~p",[Ref]),
+%%    Ref.
 
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
-  logging:debug("Cancelled ref=~p",[Ref]),
+%%  logging:debug("Cancelled ref=~p",[Ref]),
   erlang:cancel_timer(Ref).
 io_proxy_tcp(Sock, Handler, TmRef) ->
   receive
