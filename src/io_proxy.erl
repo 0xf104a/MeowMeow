@@ -18,7 +18,7 @@ tcp_send(Sock, Data) ->
   end.
 
 send_after(Time, Dest, Msg)->
-    Ref=send_after(Time, Dest, Msg),
+    Ref=erlang:send_after(Time, Dest, Msg),
     logging:debug("Setted ref=~p",[Ref]),
     Ref.
 
@@ -54,9 +54,9 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
           logging:err("Error while receiving: ~p", [Other])
       end;
     cancel_tmr ->
-      cancel_ref(TmRef),
-      io_proxy_tcp(Sock, Handler, not_set);
+      cancel_ref(TmRef);
     set_tmr ->
+      cancel_ref(TmRef),
       TRef = send_after(?timeout, self(), timeout),
       logging:debug("Setted TmRef @ io_proxy_tcp/3"),
       io_proxy_tcp(Sock, Handler, TRef);
