@@ -19,8 +19,11 @@ log_response(Request, Code) ->
 send_chunks(Dev, Sock, Sz) ->
   case file:read(Dev, Sz) of
     {ok, Data} ->
-      io_proxy:tcp_send(Sock, Data),
-      send_chunks(Dev, Sock, Sz);
+      case io_proxy:tcp_send(Sock, Data) of
+           ok -> send_chunks(Dev, Sock, Sz);
+           Error -> logging:err("Failed to send chunk: ~p @ handle:send_chunks/3",[Error]),
+                    {failed, Error}
+      end;
     eof -> ok
   end.
 
@@ -120,7 +123,12 @@ handle_file(Response, Upstream, FName) ->
   log_response(Response#response.request, 200),
   Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)},
   Upstream ! cancel_tmr,
-  send_file(FName, Response#response.socket, ?chunk_size),
+  case send_file(FName, Response#response.socket, ?chunk_size) of
+       ok -> pass;
+       {failed, Error} -> 
+	logging:warn("Failed to send file, so telling upstream to close connection"),
+        Upstream ! close
+  end,
   Upstream ! set_tmr.
 
 handle_file(Response, Upstream) ->

@@ -6,13 +6,15 @@
 tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
   case socket:send(Sock, Data) of
        ok -> ok;
-       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any])
+       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any]),
+              {error,Any}
   end;
 tcp_send(Sock, Data) ->
   {H, T} = lists:split(?chunk_size, Data),
   case socket:send(Sock, H) of
        ok -> tcp_send(Sock, T);
-       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any])
+       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any]),
+              {error, Any}
   end.
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
@@ -27,7 +29,7 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       io_proxy_tcp(Sock, Handler, TRef);
     {send, Data} ->
       cancel_ref(TmRef),
-      tcp_send(Sock, Data),
+      ok=tcp_send(Sock, Data),
       {ok, TRef} = send_after(?timeout, self(), timeout),
       io_proxy_tcp(Sock, Handler, TRef);
     recv ->
@@ -52,8 +54,12 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       logging:debug("Setted TmRef @ io_proxy_tcp/3"),
       io_proxy_tcp(Sock, Handler, TRef);
     close ->
-      {ok, Addr} = socket:peername(Sock),
-      logging:debug("Closing connection with ~p", [util:pretty_addr(Addr)]),
+      case socket:peername(Sock) of
+           {ok, Addr} -> ok;
+           Any ->Addr=#{addr=>{nan, nan, nan, nan},port=>nan}, 
+                 logging:err("Failed to get peername while closing connection: ~p @ io_proxy_tcp/3",[Any])
+      end,
+      logging:info("Closing connection with ~p", [util:pretty_addr(Addr)]),
       socket:close(Sock),
       cancel_ref(TmRef),
       exit(requested);

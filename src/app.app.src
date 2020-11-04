@@ -1,6 +1,6 @@
 {application, app, [
   {description, "A tiny webserver written in erlang"},
-  {vsn, "1.02-alpha-60920"},
+  {vsn, "1.02-early-beta-41120"},
   {modules, []},
   {registered, [app_sup]},
   {applications, [

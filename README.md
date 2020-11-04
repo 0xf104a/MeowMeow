@@ -2,11 +2,21 @@
 ## Abstract
 This is simple web server written in plaing erlang.
 ## Running
-Compile all the files using `erl` shell and then you could run it with following command:
+### Debug mode
+The best way to debug the program is just to do as following:
 ```
-1> server:run(8888).
+cd src/
+erlc *.erl && erl && rm -rf ./*.beam # This will rebuild everything from scratch, so there would be no problems with cached files
 ```
-Tested on `Erlang/OTP 22 [erts-10.5.6] [source] [64-bit] [smp:4:4] [ds:4:4:10] [async-threads:1] [hipe] [dtrace]`.
+Before using this approach don't forget to create configuration files:
+```
+cp -r configs/ /etc/MeowMeow/ # Porbably you will need root(i.e. sudo)
+```
+### Production mode 
+Compile using rebar3:
+```
+rebar3 as prod release
+```
 
 ## Using
 Put your files into `www` files. They would be served as if `www` was the root dir. File `index.html` would be displayed as defualt if it does exist.
