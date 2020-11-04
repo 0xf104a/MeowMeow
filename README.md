@@ -17,9 +17,44 @@ Compile using rebar3:
 ```
 rebar3 as prod release
 ```
+Then you need to create configs in `/etc/MeowMeow/`. After this you can run server:
+```
+ ./_build/prod/rel/MeowMeow/bin/MeowMeow <desired mode of running>
+```
+If you need help on modes of running just execute script with no arguments to get help
 
 ## Using
-Put your files into `www` files. They would be served as if `www` was the root dir. File `index.html` would be displayed as defualt if it does exist.
+Put your files in `/var/www/` directory they will be served statically. No gateway interface support present yet.
+
+## Configuring
+
+**IMPORTANT NOTICE:** In current version mistakes in config are NOT checked, so misconfiguration may lead to fatal errors.
+
+### Server
+Server configuration is stored in `/etc/MeowMeow/meow.conf`. The syntax is as follows:
+```
+Directive1 Args
+Directive2 Args
+```
+Current version support following directives:
+* `LogLevel <<LEVEL>>` set logging level from 0 to 4(0 -- log nothing,4 -- log everything)
+* `KeepAlive <<MS>>` default connection keep-alive time in milliseconds
+* `ListenPort <<PORT>>` port where to listen for connections
+  
+### Routes
+To configure routes you need to edit `/etc/MeowMeow/routes.conf`. The syntax is as follows:
+```
+Route <wildcard pattern> 
+ Directive1 Args 
+ Directive2 Args
+End
+```
+`Route` defines pattern for which directives would be applied. Directives are applied in order as they added in the config file.
+The directives currently supported by server:
+* `Abort <<CODE>>` - stop processing request and send HTTP/1.1 status code `<<CODE>>` to client
+* `No-Content` - sends HTTP/1.1 204 No Content to client
+* `Disallow` - sends `HTTP/1.1 403 Forbidden` to client
+* `Set-Header <<HEADER>> <<VALUE>>` - sets response header `<<HEADER>>` to `<<VALUE>>`
 
 ## Code copyrighting
 The code copyrightings defined in  the files in `src/` directory are not legal advice and purposed for internal use only. 
