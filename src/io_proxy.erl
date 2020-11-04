@@ -1,6 +1,6 @@
 -module(io_proxy).
 -export([io_proxy_tcp_start/2, tcp_send/2]).
--import(erlang, [send_after/3]).
+%%-import(erlang, [send_after/3]).
 -include("config.hrl").
 
 tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
@@ -16,8 +16,15 @@ tcp_send(Sock, Data) ->
        Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any]),
               {error, Any}
   end.
+
+send_after(Time, Dest, Msg)->
+    Ref=send_after(Time, Dest, Msg),
+    logging:debug("Setted ref=~p",[Ref]),
+    Ref.
+
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
+  logging:debug("Cancelled ref=~p",[Ref]),
   erlang:cancel_timer(Ref).
 io_proxy_tcp(Sock, Handler, TmRef) ->
   receive
@@ -47,8 +54,8 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
           logging:err("Error while receiving: ~p", [Other])
       end;
     cancel_tmr ->
-      logging:debug("Cancelled TmRef @ io_proxy_tcp/3"),
-      cancel_ref(TmRef);
+      cancel_ref(TmRef),
+      io_proxy_tcp(Sock, Handler, not_set);
     set_tmr ->
       TRef = send_after(?timeout, self(), timeout),
       logging:debug("Setted TmRef @ io_proxy_tcp/3"),
