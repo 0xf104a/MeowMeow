@@ -8,4 +8,4 @@
 %%%-------------------------------------------------------------------
 -author("p01ar").
 
--record(response, {request, code, socket=bad, body = "", upstream = bad, is_finished = false, is_done = false, headers = #{}}).
+-record(response, {request, code, socket=bad, body = "", upstream = bad, is_sent=false, is_finished = false, is_done = false, headers = #{}}).

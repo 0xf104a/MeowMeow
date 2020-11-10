@@ -87,7 +87,7 @@ response_headers(Params, StatusCode) ->
   response2str(PList, 1, Header) ++ "\r\n".
 
 do_response_headers(Resp) ->
-  response_headers(Resp#response.code, Resp#response.headers).
+  response_headers(Resp#response.headers, Resp#response.code).
 
 response_error(Code) ->
   StrTime = util:get_time(),

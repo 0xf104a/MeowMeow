@@ -10,7 +10,9 @@
 -author("p01ar").
 -include("config.hrl").
 -include("response.hrl").
+-include("request.hrl").
 -import(response, [update_headers/2]).
+-import(util, [sget2/2, pretty_addr/1]).
 %% API
 -export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0]).
 
@@ -50,12 +52,23 @@ rule_set_header(Arg, Response) ->
   [Header|Value] = string:split(Arg, " "),
   Response#response{headers = update_headers(Response, #{Header => Value})}.
 
+
+rule_fcgi_exec(Arg, Response) ->
+  StrTime = util:get_time(),
+  Headers = #{
+    "Server" => ?version,
+    "Date" => StrTime
+  },
+  NewResp = Response#response{headers = update_headers(Response, Headers)},
+  fcgi:fcgi_exec(Arg,NewResp).
+
 register_basic() ->
   logging:info("Registering basic rules"),
   register_rule("Abort", fun(Args, Resp) -> rule_abort(Args, Resp) end),
   register_rule("No-Content", fun(Args, Resp) -> rule_no_content(Args, Resp) end),
   register_rule("Disallow", fun(Args, Resp) -> rule_disallow(Args, Resp) end),
   register_rule("Set-Header", fun(Args, Resp) -> rule_set_header(Args, Resp) end), 
+  register_rule("ExecFCGI", fun(Args, Resp) -> rule_fcgi_exec(Args, Resp) end),
   ok.
 
 

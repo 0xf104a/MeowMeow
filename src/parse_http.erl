@@ -6,7 +6,7 @@
 
 param2map(List) ->
   if length(List) >= 2 ->
-    #{lists:nth(1, List) => lists:nth(2, List)};
+    #{binary_to_list(lists:nth(1, List)) => binary_to_list(lists:nth(2, List))};
     length(List) == 1 -> #{"body" => lists:nth(1, List)};
     true -> #{}
   end.
@@ -116,9 +116,12 @@ parse_request(SrcAddr, Lines) ->
 
 
 is_close(Request) ->
-  case sget("Connection", Request#request.header) of
+  logging:debug("Header=~p",[Request#request.header]),
+  case string:trim(sget("Connection", Request#request.header)) of
     {badkey, "Connection"} -> true;
     "close" -> true;
-    "keep-alive" -> false
+    "keep-alive" -> false;
+    Any -> logging:err("Unrecognized connection type: ~p. Either a bug or protocol violation",[Any]),
+           true
   end.
 

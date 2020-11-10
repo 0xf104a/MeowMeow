@@ -1,5 +1,5 @@
 -module(util).
--export([get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, pretty_addr/1]).
+-export([get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, sget2/2, pretty_addr/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -70,5 +70,12 @@ sget(Key, Map) ->
       {badkey, Key}
   end.
 
+sget2(Key, Map) ->
+  IsKey = maps:is_key(Key, Map),
+  if IsKey ->
+    maps:get(Key, Map);
+    true ->
+      ""
+  end.
 pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).
