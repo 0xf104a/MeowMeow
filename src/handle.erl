@@ -1,5 +1,5 @@
 -module(handle).
--export([abort/1, handler_start/1, send_file/3]).
+-export([abort/1, handler_start/1, send_file/3, get_filename/1]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).
@@ -91,9 +91,11 @@ set_keepalive(Response) ->
 
 get_filename(XRoute) ->
   Route = binary:bin_to_list(XRoute, {1, string:length(XRoute) - 1}),
+  SafeFName = filelib:safe_relative_path(Route, ?docdir),
+  SafeIName = filelib:safe_relative_path(Route ++ "index.html", ?docdir),
   FileName = filename:join([?docdir, filelib:safe_relative_path(Route, ?docdir)]),
   IndexName = filename:join([?docdir, filelib:safe_relative_path(Route ++ "index.html", ?docdir)]),
-  if (FileName == unsafe) or (IndexName == unsafe) -> unsafe;
+  if (SafeIName == unsafe) or (SafeFName == unsafe) -> unsafe;
     true ->
       FileExists = filelib:is_regular(FileName),
       IndexExists = filelib:is_regular(IndexName),
@@ -197,9 +199,29 @@ handle(Sock, Upstream, RequestLines) ->
       Upstream ! {send, abort(400)},
       ok;
     {ok, Request} ->
-      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-      logging:debug("Response=~p", [Response]),
-      handle(Response, Upstream)
+      case Request#request.method of 
+           <<"GET">>->
+      		Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      		logging:debug("Response=~p", [Response]),
+      		handle(Response, Upstream);
+           <<"HEAD">>->
+                Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+                logging:debug("Response=~p", [Response]),
+                handle(Response, Upstream);
+           <<"POST">>->
+                %% In fact, POST should reject request with 405 if not requested CGI or alike resource
+                logging:warn("Method `POST` not yet implemented"),
+                log_response(Request, 501),
+                Upstream ! {send, abort(501)},
+                Upstream ! close,
+		ok;
+           Any-> 
+                logging:warn("Requested unknown method ~s, just rejecting request", [Request#request.method]),
+                log_response(Request,405),
+                Upstream ! {send, abort(405)},
+                Upstream ! close,
+                ok
+      end
   end.
 
 handler(Sock, Upstream, RequestLines) ->

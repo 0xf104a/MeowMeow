@@ -117,7 +117,7 @@ parse_request(SrcAddr, Lines) ->
 
 is_close(Request) ->
   case sget("Connection", Request#request.header) of
-    {badkey, "Connection"} -> false;
+    {badkey, "Connection"} -> true;
     "close" -> true;
     "keep-alive" -> false
   end.
