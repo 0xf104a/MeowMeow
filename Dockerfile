@@ -19,5 +19,5 @@ COPY www /var/www
 
 # Tell docker how to run app
 EXPOSE 80
-ENTRYPOINT boot.sh
+ENTRYPOINT ["boot.sh"] 
 

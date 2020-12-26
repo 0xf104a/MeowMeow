@@ -14,8 +14,8 @@
 -define(accessfile, "/etc/MeowMeow/routes.conf").
 -define(max_request_length, 10000).
 -define(mime_types_file, "mime.types").
--define(docdir, "/var/www/").
+-define(docdir, configuration:get("DocDir",string)).
 -define(chunk_size, 1400).
 -define(timeout, 10000).
 -define(configfile, "/etc/MeowMeow/meow.conf").
--define(defconf, #{"LogLevel" => "0", "KeepAlive"=> "10000", "ListenPort"=>"80"}). %% Default configuration
+-define(defconf, #{"DocDir"=>"/var/www/","LogLevel" => "0", "KeepAlive"=> "10000", "ListenPort"=>"80"}). %% Default configuration

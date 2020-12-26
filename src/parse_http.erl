@@ -1,6 +1,6 @@
 -module(parse_http).
 -export([http2map/1, mime_by_ext/1, mime_by_fname/1, update_lines/2, is_request_finished/1, make_request/1, parse_request/2, is_close/1]).
--import(util,[sget/2]).
+-import(util,[sget2/2]).
 -include("config.hrl").
 -include("request.hrl").
 
@@ -117,8 +117,9 @@ parse_request(SrcAddr, Lines) ->
 
 is_close(Request) ->
   logging:debug("Header=~p",[Request#request.header]),
-  case string:trim(sget("Connection", Request#request.header)) of
+  case string:trim(sget2("Connection", Request#request.header)) of
     {badkey, "Connection"} -> true;
+    "" -> true;
     "close" -> true;
     "keep-alive" -> false;
     Any -> logging:err("Unrecognized connection type: ~p. Either a bug or protocol violation",[Any]),
