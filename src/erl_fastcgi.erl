@@ -1,4 +1,4 @@
-%%% @doc A simple FastCGI client implementation.
+%%% @doc /A simple FastCGI client implementation.
 %%% @link https://web.archive.org/web/20160119141816/http://www.fastcgi.com/drupal/node/6?q=node%2F22
 %%%
 %%% Copyright 2017 Marcelo Gornstein &lt;marcelog@@gmail.com&gt;
@@ -75,7 +75,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Types.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--type state():: map().
+-type state():: map() | atom().
 -type erl_fastcgi_host():: string().
 -type erl_fastcgi_port():: pos_integer().
 
@@ -87,7 +87,11 @@
   erl_fastcgi_host(), erl_fastcgi_port(), pos_integer()
 ) -> {ok, pid()}.
 start_link(Host, Port, ReconnectIntervalMillis) ->
-  gen_server:start_link(?MODULE, [Host, Port, ReconnectIntervalMillis], []).
+  try gen_server:start_link(?MODULE, [Host, Port, ReconnectIntervalMillis], []) of
+      Link -> Link
+  catch
+      Error -> logging:debug("link error: ~p @ erl_fastcgi:start_link/3",[Error])
+  end.
 
 %% @doc Runs a request.
 -spec run(
@@ -153,9 +157,18 @@ handle_cast({run, Caller, RequestId, Params, Data}, State) ->
       _ -> create(?FCGI_STDIN, RequestId, <<>>)
     end
   ],
-  ok = gen_tcp:send(Sock, Packet),
-  NewRequests = maps:put(RequestId, Caller, Requests),
-  {noreply, State#{requests := NewRequests}};
+%%  logging:debug("Sock=~p @ erl_fastcgi:handle_cast/2",[Sock]),
+  if Sock/=undefined -> 
+       ok = gen_tcp:send(Sock, Packet),
+       NewRequests = maps:put(RequestId, Caller, Requests),
+       {noreply, State#{requests := NewRequests}};
+     true-> 
+       logging:debug("Socket is undefined, entering bad_fcgi_socket state @ erl_fastcgi:handle_cast/2"),
+       ok = terminate_requests(fast_cgi_connection_reset, Requests),
+       Caller ! fcgi_dead,
+       %%spawn_link(fun die/0),
+       {noreply,State}
+  end;
 
 handle_cast({close}, State) ->
   #{sock := Sock, requests := Requests} = State,
@@ -329,3 +342,7 @@ pad(0, Acc) ->
 
 pad(Size, Acc) ->
   pad(Size - 1, <<Acc/binary, 0>>).
+
+%% @doc Kills server if something gone wrong
+die()->
+  exit(fcgi_dead).

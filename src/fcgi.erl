@@ -57,7 +57,10 @@ fcgi_proxy(FastCGIConnection,Response) ->
                  fcgi_send(NewResponse);
            NewResponse->
                  fcgi_proxy(FastCGIConnection, NewResponse)
-      end 
+      end;
+    Unhandled->
+      logging:debug("Got unhandled FastCGI data: ~p @ fcgi:fcgi_proxy/2",[Unhandled]),
+      io_proxy:tcp_send(Response#response.socket, handle:abort(502))
   after
     5000 -> erl_fastcgi:close(FastCGIConnection)
   end,
@@ -73,7 +76,7 @@ fcgi_exec(Arg, Response) ->
   SAddr = pretty_addr(XAddr),
   Method = binary:bin_to_list(Response#response.request#request.method),
   [RAddr|RPort]=string:split(SAddr,":"),
-  erl_fastcgi:run(FastCGIConnection, RequestId, [
+  ok=erl_fastcgi:run(FastCGIConnection, RequestId, [
     {"SCRIPT_FILENAME", Script},
     {"QUERY_STRING", Body},
     {"REQUEST_METHOD", Method},

@@ -60,7 +60,13 @@ rule_fcgi_exec(Arg, Response) ->
     "Date" => StrTime
   },
   NewResp = Response#response{headers = update_headers(Response, Headers)},
-  fcgi:fcgi_exec(Arg,NewResp).
+  try fcgi:fcgi_exec(Arg,NewResp) of
+      Resp -> Resp
+  catch
+      Err -> logging:err("FastCGI seems to be unavailable!"),
+             logging:debug("Error was ~p",[Err]),
+             {aborted, 502}
+  end.
 
 register_basic() ->
   logging:info("Registering basic rules"),
