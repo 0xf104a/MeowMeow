@@ -52,9 +52,10 @@ End
 `Route` defines pattern for which directives would be applied. Directives are applied in order as they added in the config file.
 The directives currently supported by server:
 * `Abort <<CODE>>` - stop processing request and send HTTP/1.1 status code `<<CODE>>` to client
-* `No-Content` - sends HTTP/1.1 204 No Content to client
+* `No-Content` - sends `HTTP/1.1 204 No Content` to client
 * `Disallow` - sends `HTTP/1.1 403 Forbidden` to client
 * `Set-Header <<HEADER>> <<VALUE>>` - sets response header `<<HEADER>>` to `<<VALUE>>`
+* `ExecFCGI <<FILE>> <<FCGI_HOST>> <<FCGI_PORT>> <<FCGI_TIMEOUT>>` - asks FastCGI running on `<<FCGI_HOST>>:<<FCGI_PORT>>` to execute `<<FILE>>` with timeout of `<<FCGI_TIMEOUT>>` ms
 
 ## Credits 
 * erl_fastcgi - Copyright 2017, Marcelo Gornstein <marcelog@gmail.com>
