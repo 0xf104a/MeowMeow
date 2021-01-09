@@ -6,7 +6,7 @@ This is simple web server written in plaing erlang.
 The best way to debug the program is just to do as following:
 ```
 cd src/
-erlc *.erl && erl && rm -rf ./*.beam # This will rebuild everything from scratch, so there would be no problems with cached files
+erlc *.erl && erl; rm -rf ./*.beam # This will rebuild everything from scratch, so there would be no problems with cached files
 ```
 Before using this approach don't forget to create configuration files:
 ```
@@ -21,14 +21,14 @@ Then you need to create configs in `/etc/MeowMeow/`. After this you can run serv
 ```
  ./_build/prod/rel/MeowMeow/bin/MeowMeow <desired mode of running>
 ```
-If you need help on modes of running just execute script with no arguments to get help
+If you need help on modes of running just execute script with no arguments to get help. 
 
 ## Using
 Put your files in `/var/www/` directory they will be served statically. No gateway interface support present yet.
 
 ## Configuring
 
-**IMPORTANT NOTICE:** In current version mistakes in config are NOT checked, so misconfiguration may lead to fatal errors.
+**IMPORTANT NOTICE:** In current version syntax errors in config are **NOT** checked, so misconfiguration may lead to fatal errors.
 
 ### Server
 Server configuration is stored in `/etc/MeowMeow/meow.conf`. The syntax is as follows:
@@ -58,8 +58,10 @@ The directives currently supported by server:
 * `ExecFCGI <<FILE>> <<FCGI_HOST>> <<FCGI_PORT>> <<FCGI_TIMEOUT>>` - asks FastCGI running on `<<FCGI_HOST>>:<<FCGI_PORT>>` to execute `<<FILE>>` with timeout of `<<FCGI_TIMEOUT>>` ms
 
 ## Credits 
-* erl_fastcgi - Copyright 2017, Marcelo Gornstein <marcelog@gmail.com>
+* erl_fastcgi - Copyright 2017, Marcelo Gornstein <marcelog@gmail.com> (Apache-2.0 license).<br> Changes introduced(file: `src/erl_fastcgi.erl`):
+  * Added logging integrated with MeowMeow webserver
+  * Added handling of errors when FastCGI server is down
 ## Code copyrighting
-The code copyrightings defined in  the files in `src/` directory are not legal advice and purposed for internal use only. 
-All code licensed under MIT license(See [LICENSE](LICENSE) for more information)
+The code copyrightings defined in some of the files in `src/` directory are not legal advice and purposed for internal use only. 
+All code, except mentioned in **Credits** section, is licensed under MIT license(See [LICENSE](LICENSE) for more information)
 
