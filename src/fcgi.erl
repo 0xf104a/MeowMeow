@@ -54,17 +54,22 @@ fcgi_proxy(FastCGIConnection,Response) ->
                  logging:debug("Sending ~p, then ~p",[NewResponse,Tail]),
                  io_proxy:tcp_send(Response#response.socket, response:do_response_headers(NewResponse)),
                  io_proxy:tcp_send(Response#response.socket, Tail),
-                 fcgi_send(NewResponse);
+                 fcgi_send(NewResponse),
+                 NewResponse#response{is_finished=true};
            NewResponse->
                  fcgi_proxy(FastCGIConnection, NewResponse)
       end;
+    {fast_cgi_stderr, 600, Msg}->
+      logging:err("FastCGI error: ~p",[Msg]),
+      fcgi_proxy(FastCGIConnection, Response);
     Unhandled->
       logging:debug("Got unhandled FastCGI data: ~p @ fcgi:fcgi_proxy/2",[Unhandled]),
-      io_proxy:tcp_send(Response#response.socket, handle:abort(502))
+      io_proxy:tcp_send(Response#response.socket, handle:abort(502)),
+      Response#response{code=502, is_finished=true}
   after
     5000 -> erl_fastcgi:close(FastCGIConnection)
-  end,
-  Response#response{is_finished=true}.
+  end.
+  %%Response#response{is_finished=true}.
 
 fcgi_exec(Arg, Response) ->
   [Script,Host,Port,TryToReconnectEveryMillis] = string:split(Arg, " ",all),

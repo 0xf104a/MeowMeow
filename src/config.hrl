@@ -6,11 +6,11 @@
 %%% @end
 %%% Created : 26. авг. 2020 19:50
 %%%-------------------------------------------------------------------
-%%TODO:Config file
+%%DONE:Config file
 -author("p01ar").
 -record(sockaddr_in4, {family = inet, port = 8888, addr = {0, 0, 0, 0}}).
 -define(CHUNK_SIZE, 2048).
--define(version, "MeowMeow/1.02-prebeta-101120").
+-define(version, "MeowMeow/1.02-prebeta-9121").
 -define(accessfile, "/etc/MeowMeow/routes.conf").
 -define(max_request_length, 10000).
 -define(mime_types_file, "mime.types").
