@@ -1,6 +1,8 @@
 # MeowMeow webserver (formerly Ghost WebServer)
 ## Abstract
 This is simple web server written in plaing erlang.
+## Erlang version
+`Erlang/OTP 23` is required to run this sever.
 ## Running
 ### Debug mode
 The best way to debug the program is just to do as following:
