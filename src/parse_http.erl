@@ -6,7 +6,7 @@
 
 param2map(List) ->
   if length(List) >= 2 ->
-    #{binary_to_list(lists:nth(1, List)) => binary_to_list(lists:nth(2, List))};
+    #{binary_to_list(lists:nth(1, List)) => string:lowercase(binary_to_list(lists:nth(2, List)))};
     length(List) == 1 -> #{"body" => lists:nth(1, List)};
     true -> #{}
   end.
@@ -22,8 +22,8 @@ http2map(Lines) ->
   if length(Header) < 3 ->
     logging:debug("Bad header: ~p from ~p", [Header, Lines]),
     {aborted, 400};
-    true -> Params = lists:delete(lists:nth(1, Lines), Lines),
-      Parsed = #{method => lists:nth(1, Header), route => lists:nth(2, Header), http_ver => lists:nth(3, Header), body => ""},
+  true -> Params = lists:delete(lists:nth(1, Lines), Lines),
+          Parsed = #{method => lists:nth(1, Header), route => lists:nth(2, Header), http_ver => lists:nth(3, Header), body => ""},
       {ok, parse_params(Params, Parsed)}
   end.
 
@@ -45,6 +45,7 @@ read_mimes(FName) ->
   Content = unicode:characters_to_list(File),
   Preprocessed = string:split(Content, "\n", all),
   parse_mimes(Preprocessed, 1, #{}).
+
 find_mime(Ext, Data) ->
   if length(Data) < 1 -> "application/octet-stream";
     true -> [H | T] = Data,

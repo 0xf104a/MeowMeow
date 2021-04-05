@@ -36,7 +36,7 @@ loop(Sock) ->
    end.
 
 listen(Port) ->
-  Addr = #{addr => {0, 0, 0, 0}, family => inet, port => Port},
+  Addr = #{addr => util:str2addr(configuration:get("ListenHost",string)), family => inet, port => Port},
   {ok, Sock} = socket:open(inet, stream, tcp),
   case socket:bind(Sock, Addr) of
     {ok, _} ->
@@ -48,13 +48,13 @@ listen(Port) ->
       spawn(fun() -> loop(Sock) end),
       R;
     {error, Reason} ->
-      logging:err("Failed to bind to 0.0.0.0:~p. Reason: ~s", [Port, Reason]),
+      logging:err("Failed to bind to ~s:~p. Reason: ~s", [configuration:get("ListenHost",string),Port, Reason]),
       {error, Reason}
   end.
 
 listen_synchronized(Port) ->
   %% Does not create new process
-  Addr = #{addr => {0, 0, 0, 0}, family => inet, port => Port},
+  Addr = #{addr => util:str2addr(configuration:get("ListenHost",string)), family => inet, port => Port},
   {ok, Sock} = socket:open(inet, stream, tcp),
   case socket:bind(Sock, Addr) of
     {ok, _} ->
@@ -66,7 +66,8 @@ listen_synchronized(Port) ->
       loop(Sock),
       R;
     {error, Reason} ->
-      logging:err("Failed to bind to 0.0.0.0:~p. Reason: ~s", [Port, Reason]),
+      logging:debug("Bind addr=~p",[util:str2addr(configuration:get("ListenHost",string))]),
+      logging:err("Failed to bind ~s:~p. Reason: ~s", [configuration:get("ListenHost",string),Port, Reason]),
       {error, Reason}
   end.
 

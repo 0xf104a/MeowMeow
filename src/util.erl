@@ -1,5 +1,5 @@
 -module(util).
--export([get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, sget2/2, pretty_addr/1]).
+-export([addr2str/1, str2addr/1, get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, sget2/2, pretty_addr/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -77,5 +77,21 @@ sget2(Key, Map) ->
     true ->
       ""
   end.
+str2int(Str) ->
+   {R, []} = string:to_integer(Str),
+    R.
+str2addr(Str) ->
+  IP = string:split(Str,".",all),
+  if length(IP) == 4 ->
+     {str2int(lists:nth(1,IP)),
+      str2int(lists:nth(2,IP)),
+      str2int(lists:nth(3,IP)),
+      str2int(lists:nth(4,IP))};
+     true -> logging:err("Failed to parse IP ~s",[Str])
+  end.
+
+addr2str(Addr)->
+   lists:flatten(io_lib:format("~p.~p.~p.~p",Addr)).
+
 pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).

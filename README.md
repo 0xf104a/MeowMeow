@@ -40,7 +40,8 @@ Current version support following directives:
 * `LogLevel <<LEVEL>>` set logging level from 0 to 4(0 -- log nothing,4 -- log everything)
 * `KeepAlive <<MS>>` default connection keep-alive time in milliseconds
 * `ListenPort <<PORT>>` port where to listen for connections
-  
+* `ListenHost <<HOSTNAME/IP>>` hostname to listen on
+* `DocDir <<DIRECTORY>>` directory with files to serve  
 ### Routes
 To configure routes you need to edit `/etc/MeowMeow/routes.conf`. The syntax is as follows:
 ```

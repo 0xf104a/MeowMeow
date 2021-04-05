@@ -1,5 +1,5 @@
 -module(handle).
--export([abort/1, handler_start/1, send_file/3, get_filename/1]).
+-export([abort/1, handler_start/1, send_file/3, get_filename/1, stat_file/1]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).
@@ -89,6 +89,11 @@ set_keepalive(Response) ->
       set_header(Response, "Connection", "keep-alive")
   end.
 
+wrap_fname_stat(FName) ->
+  case file:read_file_info(FName) of
+       {error, Err} -> Err;
+       {ok, FInfo} -> {FName, FInfo}
+  end.
 get_filename(XRoute) ->
   Route = binary:bin_to_list(XRoute, {1, string:length(XRoute) - 1}),
   SafeFName = filelib:safe_relative_path(Route, ?docdir),
@@ -97,19 +102,18 @@ get_filename(XRoute) ->
   IndexName = filename:join([?docdir, filelib:safe_relative_path(Route ++ "index.html", ?docdir)]),
   if (SafeIName == unsafe) or (SafeFName == unsafe) -> unsafe;
     true ->
-      FileExists = filelib:is_regular(FileName),
       IndexExists = filelib:is_regular(IndexName),
-      if FileExists -> FileName;
-        IndexExists -> IndexName;
-        true -> no_file
+      if IndexExists -> wrap_fname_stat(IndexName);
+        true -> wrap_fname_stat(FileName)
       end
   end.
 
+stat_file(enoent) -> {0, no_file};
 stat_file(no_file) -> {0, no_file};
 stat_file(unsafe) -> {0, no_access};
-stat_file(FName) ->
+stat_file(eacces) -> {0,no_access};
+stat_file({FName,FInfo}) ->
   logging:debug("Stat: ~p", [FName]),
-  {ok, FInfo} = file:read_file_info(FName),
   Access = FInfo#file_info.access,
   FSize = FInfo#file_info.size,
   if (Access /= read) and (Access /= read_write) -> {0, no_access};
@@ -137,8 +141,8 @@ handle_file(Response, Upstream) ->
   Route = Response#response.request#request.route,
   Request = Response#response.request,
   Method = Response#response.request#request.method,
-  FName = get_filename(Route),
-  case stat_file(FName) of
+  FStat = get_filename(Route),
+  case stat_file(FStat) of
     {0, no_file} ->
       Upstream ! {send, abort(Method, 404)},
       log_response(Request, 404),
@@ -157,6 +161,7 @@ handle_file(Response, Upstream) ->
         "Content-Length" => integer_to_list(ContentSize),
         "Date" => StrTime,
         "Server" => ?version}),
+      {FName, _} = FStat,
       handle_file(ResponseHeadered, Upstream, FName)
   end.
 
