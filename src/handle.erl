@@ -95,6 +95,7 @@ wrap_fname_stat(FName) ->
        {error, Err} -> Err;
        {ok, FInfo} -> {FName, FInfo}
   end.
+
 get_filename(XRoute) ->
   Route = binary:bin_to_list(XRoute, {1, string:length(XRoute) - 1}),
   SafeFName = filelib:safe_relative_path(Route, ?docdir),

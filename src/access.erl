@@ -16,7 +16,8 @@ parse_line(Dev, {ok, Line}) ->
   case Cmd of
     pass -> {ok, []};
     {"Section", true} -> {ok, []};
-    {"Route", [Name]} -> {ok, [{Name, parse_section({ok, Dev}, [], Name)}]};
+    {"Route", [Name]} -> {ok, [{route, Name, parse_section({ok, Dev}, [], Name)}]};
+    {"Host", [Name]} -> {ok, [{host, Name, parse_section({ok, Dev}, [], Name)}]};
     {"End", _} -> finish;
     {Key, Value} -> {ok, [{Key, Value}]};
     Any -> logging:err("get_cmd/1 returned unexpected result ~p @ access:parse_line/2", [Any])
@@ -57,7 +58,7 @@ reload() ->
 
 get_rules(_, [], Rules) -> Rules;
 get_rules(Route, Array, Rules) ->
-  [{Pattern, List} | T] = Array,
+  [{route, Pattern, List} | T] = Array,
   Stat = util:check_wildcard(Route, Pattern),
   if Stat -> get_rules(Route, T, Rules ++ List);
     true -> get_rules(Route, T, Rules)

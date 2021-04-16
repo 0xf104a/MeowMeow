@@ -52,6 +52,9 @@ rule_set_header(Arg, Response) ->
   [Header|Value] = string:split(Arg, " "),
   Response#response{headers = update_headers(Response, #{Header => Value})}.
 
+rule_set_code(Arg, Response)->
+  {Code, []} = string:to_integer(Arg),
+  Response#response{code = Code}.
 
 rule_fcgi_exec(Arg, Response) ->
   StrTime = util:get_time(),
@@ -68,6 +71,19 @@ rule_fcgi_exec(Arg, Response) ->
              {aborted, 502}
   end.
 
+rule_send_file(Arg, RawResponse) ->
+   case handle:stat_file(file:read_file_info(Arg)) of
+        {FSize,ok} -> Response = RawResponse#response{headers = update_headers(RawResponse, 
+                                 #{"Content-Length" => erlang:integer_to_list(FSize)})},
+                      io_proxy:tcp_send(Response#response.socket, 
+                                 response:response_headers(Response#response.headers, 
+                                                           Response#response.code)),
+                       handle:send_file(Arg, Response#response.socket, ?chunk_size), 
+                       Response#response{is_finished=true};
+        Any ->         logging:err("Bad stat for ~s: ~p",[Arg, Any]),
+                       {aborted, 500}
+   end.
+
 register_basic() ->
   logging:info("Registering basic rules"),
   register_rule("Abort", fun(Args, Resp) -> rule_abort(Args, Resp) end),
@@ -75,6 +91,8 @@ register_basic() ->
   register_rule("Disallow", fun(Args, Resp) -> rule_disallow(Args, Resp) end),
   register_rule("Set-Header", fun(Args, Resp) -> rule_set_header(Args, Resp) end), 
   register_rule("ExecFCGI", fun(Args, Resp) -> rule_fcgi_exec(Args, Resp) end),
+  register_rule("Set-Code", fun(Args, Resp) -> rule_set_code(Args, Resp) end),
+  register_rule("Send-File", fun(Args, Resp) -> rule_send_file(Args, Resp) end),
   ok.
 
 

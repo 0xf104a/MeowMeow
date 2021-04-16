@@ -1,5 +1,5 @@
 -module(server).
--export([run/1, run_synchronized/1, start/0, stop/0]).
+-export([run/1, run_synchronized/1, start/0, stop/0, start_async/0]).
 -import(socket, [create_socket/1, socket_recv/2, socket_accept/3, socket_send/2, socket_recv_all/2]).
 -import(handle, [handle_http11/1, abort/1]).
 -import(parse_http, [http2map/1]).
@@ -82,11 +82,21 @@ run_synchronized(Port) ->
   listen_synchronized(Port).
 
 start() ->
+  io:fwrite("                                                                         
+______  ___                    ______  ___                     
+___   |/  /_____________      ____   |/  /_____________      __
+__  /|_/ /_  _ \\  __ \\_ | /| / /_  /|_/ /_  _ \\  __ \\_ | /| / /
+_  /  / / /  __/ /_/ /_ |/ |/ /_  /  / / /  __/ /_/ /_ |/ |/ / 
+/_/  /_/  \\___/\\____/____/|__/ /_/  /_/  \\___/\\____/____/|__/  
+                                                               
+Version ~s~n", [?version]),
   configuration:load(),
   rules:init_rules(),
   rules:register_basic(),
   access:load_access(?accessfile),
   run_synchronized(configuration:get("ListenPort", int)).
 
+start_async() -> 
+   spawn(fun() -> start() end).
 stop() ->
   init:stop().
