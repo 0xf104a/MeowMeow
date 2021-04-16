@@ -31,7 +31,8 @@ send_file(FName, Sock, ChunkSz) ->
   logging:debug("Sending file: ~p", [FName]),
   case file:open(FName, read) of
     {ok, Dev} -> send_chunks(Dev, Sock, ChunkSz);
-    Any -> logging:err("Unexpected result while opening the file ~s: ~p",[FName, Any])
+    Any -> logging:err("Unexpected result while opening the file ~s: ~p",[FName, Any]),
+           {failed, Any}
   end.
 
 
@@ -103,8 +104,10 @@ get_filename(XRoute) ->
   if (SafeIName == unsafe) or (SafeFName == unsafe) -> unsafe;
     true ->
       IndexExists = filelib:is_regular(IndexName),
+      FNameIsRegular = filelib:is_regular(FileName),
       if IndexExists -> wrap_fname_stat(IndexName);
-        true -> wrap_fname_stat(FileName)
+         FNameIsRegular -> wrap_fname_stat(FileName);
+         true -> enoent
       end
   end.
 
@@ -113,11 +116,13 @@ stat_file(no_file) -> {0, no_file};
 stat_file(unsafe) -> {0, no_access};
 stat_file(eacces) -> {0,no_access};
 stat_file({FName,FInfo}) ->
-  logging:debug("Stat: ~p", [FName]),
+  logging:debug("Stat: ~p, FInfo: ~p", [FName,FInfo]),
   Access = FInfo#file_info.access,
   FSize = FInfo#file_info.size,
   if (Access /= read) and (Access /= read_write) -> {0, no_access};
     FSize == 0 -> {0, empty_file};
+    FInfo#file_info.type /= regular -> logging:warn("Attempting to send irregular file: ~s",[FName]),
+			               {0, no_file};
     true -> {FSize, ok}
   end.
 
