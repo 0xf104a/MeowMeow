@@ -111,8 +111,14 @@ parse_request(SrcAddr, Lines) ->
       bad_request;
     {ok, Map} ->
       Method = maps:get(method, Map),
-      Route = maps:get(route, Map),
-      {ok, #request{src_addr = SrcAddr, route = Route, header = Map, method = Method}}
+      BinRoute = maps:get(route, Map),
+      logging:debug("BinRoute=~p", [BinRoute]),
+      SRoute = binary:split(BinRoute,<<"?">>),
+      case SRoute of
+           [CRoute] -> Route = CRoute, Params = "";
+           [CRoute, CParams] -> Route = CRoute, Params = CParams
+      end,
+      {ok, #request{src_addr = SrcAddr, route = Route, header = Map, method = Method, params = Params}}
   end.
 
 

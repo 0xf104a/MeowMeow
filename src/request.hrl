@@ -8,4 +8,4 @@
 %%%-------------------------------------------------------------------
 -author("p01ar").
 
--record(request, {src_addr, route, method, header, body = ""}).
+-record(request, {src_addr, route, method, header, body = "", params = ""}).
