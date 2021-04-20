@@ -59,7 +59,7 @@ The directives currently supported by server:
 * `Disallow` - sends `HTTP/1.1 403 Forbidden` to client
 * `Set-Header <<HEADER>> <<VALUE>>` - sets response header `<<HEADER>>` to `<<VALUE>>`
 * `ExecFCGI <<FILE>> <<FCGI_HOST>> <<FCGI_PORT>> <<FCGI_TIMEOUT>>` - asks FastCGI running on `<<FCGI_HOST>>:<<FCGI_PORT>>` to execute `<<FILE>>` with timeout of `<<FCGI_TIMEOUT>>` ms
-* `Set-Status <<CODE>>` sets status code for a response.
+* `Set-Code <<CODE>>` sets status code for a response.
 * `Send-File <<PATH>>` sends file as a response.
 ## Credits 
 * erl_fastcgi - Copyright 2017, Marcelo Gornstein <marcelog@gmail.com> (Apache-2.0 license).<br> Changes introduced(file: `src/erl_fastcgi.erl`):
