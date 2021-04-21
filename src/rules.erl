@@ -29,8 +29,12 @@ register_rule(Rule, RuleHandler) ->
   ets:insert(rules, [{Rule, RuleHandler}]).
 
 execute_rule(Rule, Args, Response) ->
-  [{Rule, Handler}] = ets:lookup(rules, Rule),
-  Handler(Args, Response).
+  logging:debug("Executing rule ~s",[Rule]),
+  case ets:lookup(rules, Rule) of
+       [{Rule, Handler}] -> Handler(Args, Response);
+       Any -> logging:err("Bad rule ~s, lookup responded: ~p",[Rule, Any]),
+              {aborted, 500}
+  end.
 
 %% Basic rules
 rule_abort(Args, _) ->

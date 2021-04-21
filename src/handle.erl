@@ -46,7 +46,7 @@ abort(Code) ->
       "Connection" => "close",
       "Server" => ?version}, Code, Body).
 
-abort("HEAD", Code) ->
+abort(<<"HEAD">>, Code) ->
   Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
   StrTime = get_time(),
   response:response_headers(
@@ -158,7 +158,7 @@ handle_file(Response, Upstream) ->
       log_response(Request, 403),
       Upstream ! close;
     {0, empty_file} ->
-      Upstream ! {send, abort("HEAD", 204)},
+      Upstream ! {send, abort(<<"HEAD">>, 204)},
       log_response(Request, 204),
       Upstream ! close;
     {ContentSize, ok} ->
@@ -168,7 +168,12 @@ handle_file(Response, Upstream) ->
         "Date" => StrTime,
         "Server" => ?version}),
       {FName, _} = FStat,
-      handle_file(ResponseHeadered, Upstream, FName)
+      case Method of
+           <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName);
+           <<"HEAD">> ->  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
+           Any -> logging:err("Bad method handling: ~p. Probably a bug.",[Any]),
+                  Upstream ! {send, abort(500)}
+      end
   end.
 
 
