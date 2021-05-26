@@ -1,7 +1,7 @@
 -module(access).
 -export([parse_access/1, load_access/1, get_rules/1, unload/0, reload/0]).
 -include("config.hrl").
-
+-include("request.hrl").
 get_cmd("") -> pass;
 get_cmd(Cmd) ->
   L = string:split(Cmd, " "),
@@ -57,13 +57,33 @@ reload() ->
   load_access(?accessfile).
 
 get_rules(_, [], Rules) -> Rules;
-get_rules(Route, Array, Rules) ->
-  [{route, Pattern, List} | T] = Array,
-  Stat = util:check_wildcard(Route, Pattern),
-  if Stat -> get_rules(Route, T, Rules ++ List);
-    true -> get_rules(Route, T, Rules)
+get_rules(Request, Array, Rules) ->
+  [H | T] = Array,
+  case H of
+       {Type, Pattern, List} -> 
+           get_rules_checked(Request, {Type, Pattern, List}, Rules, T);
+       Any->
+           get_rules(Request, T, Rules++[H])
   end.
 
-get_rules(Route) ->
+get_rules_checked(Request, {Type, Pattern, List}, Rules, T)->
+  case Type of
+       route ->
+          Route=Request#request.route,
+          StatRoute = util:check_wildcard(Route, Pattern),
+          if StatRoute -> get_rules(Request, T, Rules ++ get_rules(Request,List,[]));
+             true -> get_rules(Request, T, Rules)
+          end;
+       host ->
+          Host=maps:get("Host",Request#request.header),
+          logging:debug("Host=`~s`,Pattern=`~s`",[Host, Pattern]),
+          StatHost = util:check_wildcard(Host, Pattern),
+          logging:debug("StatHost=~p",[StatHost]),
+          if StatHost -> get_rules(Request, T, Rules ++ get_rules(Request,List,[]));
+             true -> get_rules(Request, T, Rules)
+          end
+  end.
+
+get_rules(Request) ->
   [{table, Array}] = ets:lookup(access, table),
-  get_rules(Route, Array, []).
+  get_rules(Request,  Array, []).

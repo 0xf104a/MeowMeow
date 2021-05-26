@@ -171,7 +171,7 @@ handle_file(Response, Upstream) ->
       case Method of
            <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName);
            <<"HEAD">> ->  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
-           Any -> logging:err("Bad method handling: ~p. Probably a bug.",[Any]),
+           Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2",[Any]),
                   Upstream ! {send, abort(500)}
       end
   end.
@@ -181,7 +181,7 @@ handle_file(Response, Upstream) ->
 handle(Resp, Upstream) ->
   Route = Resp#response.request#request.route,
   Request = Resp#response.request,
-  Rules = access:get_rules(Route),
+  Rules = access:get_rules(Request),
   R = set_keepalive(Resp),
   logging:debug("R=~p", [R]),
   logging:debug("Rules=~p", [Rules]),
