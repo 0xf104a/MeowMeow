@@ -6,7 +6,7 @@ get_cmd("") -> pass;
 get_cmd(Cmd) ->
   L = string:split(Cmd, " "),
   if length(L) == 0 -> pass;
-    length(L) == 1 -> {lists:nth(1, L), true};
+    length(L) == 1 -> {string:trim(lists:nth(1, L)), true};
     length(L) > 1 -> [K | V] = L,
       {K, V}
   end.
@@ -69,13 +69,14 @@ get_rules(Request, Array, Rules) ->
 get_rules_checked(Request, {Type, Pattern, List}, Rules, T)->
   case Type of
        route ->
-          Route=Request#request.route,
-          StatRoute = util:check_wildcard(Route, Pattern),
+          Route=binary:bin_to_list(Request#request.route),
+          logging:debug("Route=~p, Pattern=~p",[Route,Pattern]),
+          StatRoute = util:check_wildcard(Route, string:trim(Pattern)),
           if StatRoute -> get_rules(Request, T, Rules ++ get_rules(Request,List,[]));
              true -> get_rules(Request, T, Rules)
           end;
        host ->
-          Host=maps:get("Host",Request#request.header),
+          Host=string:trim(maps:get("Host",Request#request.header)),
           logging:debug("Host=`~s`,Pattern=`~s`",[Host, Pattern]),
           StatHost = util:check_wildcard(Host, Pattern),
           logging:debug("StatHost=~p",[StatHost]),

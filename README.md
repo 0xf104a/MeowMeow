@@ -31,8 +31,7 @@ $ ./_build/prod/rel/MeowMeow/bin/MeowMeow <desired mode of running>
 If you need help on modes of running just execute script with no arguments to get help. 
 
 ## Using
-Put your files in `/var/www/` directory they will be served statically. No gateway interface support present yet.
-
+Put your files in `/var/www/` directory they will be served statically. Currently FastCGI support available for serving files wich are not static.
 ## Configuring
 
 **IMPORTANT NOTICE:** In current version syntax errors in config are **NOT** checked, so misconfiguration may lead to fatal errors.
@@ -55,9 +54,12 @@ To configure routes you need to edit `/etc/MeowMeow/routes.conf`. The syntax is 
 Route <wildcard pattern> 
  Directive1 Args 
  Directive2 Args
+ Host <wildcard pattern>
+  Directive3 Args
+ End
 End
 ```
-`Route` defines pattern for which directives would be applied. Directives are applied in order as they added in the config file.
+`Route` defines pattern of request paths for which directives would be applied. Additionally directives can be applied by `Host` header(as in an example above). Directives are applied in order as they added in the config file.
 The directives currently supported by server:
 * `Abort <<CODE>>` - stop processing request and send HTTP/1.1 status code `<<CODE>>` to client
 * `No-Content` - sends `HTTP/1.1 204 No Content` to client

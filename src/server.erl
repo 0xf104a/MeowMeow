@@ -52,19 +52,24 @@ listen(Port) ->
       {error, Reason}
   end.
 
+do_listen(Sock,Port) ->
+    R = socket:sockname(Sock),
+    ok = socket:listen(Sock),
+    socket:setopt(Sock, socket, reuseaddr, true),
+    socket:setopt(Sock, socket, reuseport, true),
+    logging:info("Listening on port ~p", [Port]),
+    loop(Sock),
+    R.  
 listen_synchronized(Port) ->
   %% Does not create new process
   Addr = #{addr => util:str2addr(configuration:get("ListenHost",string)), family => inet, port => Port},
   {ok, Sock} = socket:open(inet, stream, tcp),
   case socket:bind(Sock, Addr) of
+    ok ->
+      do_listen(Sock, Port);
     {ok, _} ->
-      R = socket:sockname(Sock),
-      ok = socket:listen(Sock),
-      socket:setopt(Sock, socket, reuseaddr, true),
-      socket:setopt(Sock, socket, reuseport, true),
-      logging:info("Listening on port ~p", [Port]),
-      loop(Sock),
-      R;
+      logging:warn("Seems that you use old version of Erlang. This may lead to webserver crash or work incorrectly due to backward incompatability of Erlang!"),
+      do_listen(Sock, Port);    
     {error, Reason} ->
       logging:debug("Bind addr=~p",[util:str2addr(configuration:get("ListenHost",string))]),
       logging:err("Failed to bind ~s:~p. Reason: ~s", [configuration:get("ListenHost",string),Port, Reason]),
