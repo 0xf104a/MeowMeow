@@ -3,11 +3,13 @@
 # Boot script for docker
 
 echo "=> DEBUG: $0 $1"
-echo "=> Booting MeowMeow webserver"
+echo "=> Booting MeowMeow webserver tests"
 
-if [[ $1 == "shell" ]]; then
-   echo "=> Entering pre-test shell"
-   /bin/sh
+if [[ $# -ge 1 ]]; then
+ if [[ $1 == "shell" ]]; then
+    echo "=> Entering pre-test shell"
+    /bin/sh
+ fi
 fi
 
 /MeowMeow/bin/MeowMeow daemon
