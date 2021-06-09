@@ -1,6 +1,7 @@
 # MeowMeow webserver (formerly Ghost WebServer)
 [![Erlang CI](https://github.com/Andrewerr/MeowMeow/actions/workflows/erlang.yml/badge.svg)](https://github.com/Andrewerr/MeowMeow/actions/workflows/erlang.yml)
 [![Publish Docker image](https://github.com/Andrewerr/MeowMeow/actions/workflows/docker.yml/badge.svg)](https://github.com/Andrewerr/MeowMeow/actions/workflows/docker.yml)
+[![Tests](https://github.com/Andrewerr/MeowMeow/actions/workflows/test.yml/badge.svg)](https://github.com/Andrewerr/MeowMeow/actions/workflows/test.yml)
 ## Abstract
 This is simple web server written in plain erlang.
 ## Erlang version
