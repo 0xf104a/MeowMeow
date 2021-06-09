@@ -10,6 +10,6 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v1
     - name: Build
-      run: docker build -t TestMeowMeow -f tests/Dockerfile .
+      run: docker build -t test.meow.meow -f tests/Dockerfile .
     - name: Test
-      run: docker run TestMeowMeow
+      run: docker run test.meow.meow
