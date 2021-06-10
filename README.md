@@ -5,7 +5,7 @@
 ## Abstract
 This is simple web server written in plain erlang.
 ## Erlang version
-`Erlang/OTP 23` is required to run this server.
+`Erlang/OTP 23` is required to run this server. `Erlang/OTP 24` is reccommended.
 ## Running
 ### Debug mode
 The best way to debug the program is just to do as following:
@@ -69,6 +69,8 @@ The directives currently supported by server:
 * `ExecFCGI <<FILE>> <<FCGI_HOST>> <<FCGI_PORT>> <<FCGI_TIMEOUT>>` - asks FastCGI running on `<<FCGI_HOST>>:<<FCGI_PORT>>` to execute `<<FILE>>` with timeout of `<<FCGI_TIMEOUT>>` ms
 * `Set-Code <<CODE>>` sets status code for a response.
 * `Send-File <<PATH>>` sends file as a response.
+
+You can see an example of routing rules configuration [here](https://github.com/Andrewerr/MeowMeow/blob/master/tests/config/routes.conf)
 ## Credits 
 * erl_fastcgi - Copyright 2017, Marcelo Gornstein <marcelog@gmail.com> (Apache-2.0 license).<br> Changes introduced(file: `src/erl_fastcgi.erl`):
   * Added logging integrated with MeowMeow webserver
