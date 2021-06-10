@@ -12,7 +12,7 @@ get_cmd(Cmd) ->
   end.
 
 parse_line(Dev, {ok, Line}) ->
-  Cmd = get_cmd(lists:nth(1, string:split(string:trim(Line), "#"))),
+  Cmd = get_cmd(string:trim(lists:nth(1, string:split(string:trim(Line), "#")))),
   case Cmd of
     pass -> {ok, []};
     {"Section", true} -> {ok, []};

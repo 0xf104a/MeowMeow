@@ -12,5 +12,7 @@ if [[ $# -ge 1 ]]; then
  fi
 fi
 
+export TESTROOT="/tests/"
+
 /MeowMeow/bin/MeowMeow daemon
 ruby "/testroot/SimpleTest/src/test.rb" /tests

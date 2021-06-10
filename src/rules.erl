@@ -77,8 +77,11 @@ rule_fcgi_exec(Arg, Response) ->
 
 rule_send_file(Arg, RawResponse) ->
    case handle:stat_file(file:read_file_info(Arg)) of
-        {FSize,ok} -> Response = RawResponse#response{headers = update_headers(RawResponse, 
-                                 #{"Content-Length" => erlang:integer_to_list(FSize)})},
+        {FSize,ok} -> StrTime = util:get_time(),
+                      Response = RawResponse#response{headers = update_headers(RawResponse, 
+                                 #{"Content-Length" => erlang:integer_to_list(FSize),
+                                   "Server" => ?version,
+                                   "Date" => StrTime})},
                       io_proxy:tcp_send(Response#response.socket, 
                                  response:response_headers(Response#response.headers, 
                                                            Response#response.code)),

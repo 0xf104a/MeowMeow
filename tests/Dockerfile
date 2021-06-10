@@ -20,6 +20,7 @@ COPY tests/www /var/www
 # Tests
 WORKDIR /
 COPY tests/simple_test tests
+COPY tests/vsn.txt /tests/vsn.txt
 RUN mkdir /testroot
 WORKDIR /testroot
 RUN apk add ruby ruby-libs ruby-json ruby-bigdecimal ruby-bundler git
