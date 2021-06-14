@@ -78,8 +78,13 @@ sget2(Key, Map) ->
       ""
   end.
 str2int(Str) ->
-   {R, []} = string:to_integer(Str),
-    R.
+    case string:to_integer(Str) of
+         {R, []} -> R;
+         {R, <<>>} -> R;
+         Any -> logging:err("Failed to parse to int: ~p", [Str]),
+                {error, bad_arg}
+    end.
+
 str2addr(Str) ->
   IP = string:split(Str,".",all),
   if length(IP) == 4 ->
@@ -91,7 +96,7 @@ str2addr(Str) ->
   end.
 
 get_http_ver_pair(Str) ->
-   Ver = lists:nth(string:split(Str,"/"),2),
+   Ver = lists:nth(2,string:split(Str,"/")),
    [VerMajor, VerMinor] = string:split(Ver, "."),
    {str2int(VerMajor),str2int(VerMinor)}.
 
