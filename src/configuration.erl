@@ -49,6 +49,15 @@ get(VarName, string) ->
   [{table, Map}] = ets:lookup(config_storage, table),
   maps:get(VarName, Map);
 
+get(VarName, bool) ->
+  [{table, Map}] = ets:lookup(config_storage, table),
+  StrValue = string:trim(string:lowercase(maps:get(VarName, Map))),
+  if StrValue == "no" -> false;
+     StrValue == "yes" -> true;
+     true -> logging:err("Can not parse config: ~s option requires Yes/No values, but got ~p", []),
+             {error, parse_error}
+  end; 
+
 get(VarName, int) ->
   [{table, Map}] = ets:lookup(config_storage, table),
   %%io:fwrite("VarName=~s,Map=~p,tp=int~n", [VarName, Map]),

@@ -112,13 +112,14 @@ parse_request(SrcAddr, Lines) ->
     {ok, Map} ->
       Method = maps:get(method, Map),
       BinRoute = maps:get(route, Map),
+      HttpVer = maps:get(http_ver, Map),
       logging:debug("BinRoute=~p", [BinRoute]),
       SRoute = binary:split(BinRoute,<<"?">>),
       case SRoute of
            [CRoute] -> Route = CRoute, Params = "";
            [CRoute, CParams] -> Route = CRoute, Params = CParams
       end,
-      {ok, #request{src_addr = SrcAddr, route = Route, header = Map, method = Method, params = Params}}
+      {ok, #request{src_addr = SrcAddr, http_ver = HttpVer, route = Route, header = Map, method = Method, params = Params}}
   end.
 
 

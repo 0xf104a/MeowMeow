@@ -10,7 +10,7 @@
 -author("p01ar").
 -record(sockaddr_in4, {family = inet, port = 8888, addr = {0, 0, 0, 0}}).
 -define(CHUNK_SIZE, 2048).
--define(version, "MeowMeow/1.02-prebeta-r10").
+-define(version, "MeowMeow/1.02-prebeta-r11").
 -define(accessfile, "/etc/MeowMeow/routes.conf").
 -define(max_request_length, 10000).
 -define(mime_types_file, "/etc/MeowMeow/mime.types").
@@ -18,4 +18,4 @@
 -define(chunk_size, 1400).
 -define(timeout, 10000).
 -define(configfile, "/etc/MeowMeow/meow.conf").
--define(defconf, #{"DocDir"=>"/var/www/","LogLevel" => "0", "ListenHost" => "127.0.0.1", "KeepAlive"=> "10000", "ListenPort"=>"80"}). %% Default configuration
+-define(defconf, #{"DocDir"=>"/var/www/","LogLevel" => "0", "ListenHost" => "127.0.0.1", "KeepAlive"=> "10000", "ListenPort"=>"80", "AllowLegacyHttp"=>"No"}). %% Default configuration

@@ -1,5 +1,5 @@
 -module(util).
--export([addr2str/1, str2addr/1, get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, sget2/2, pretty_addr/1]).
+-export([addr2str/1, get_http_ver_pair/1, str2addr/1, get_time/0, wildcard2regex/1, check_wildcard/2, tup2list/1, sget/2, sget2/2, pretty_addr/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -89,6 +89,11 @@ str2addr(Str) ->
       str2int(lists:nth(4,IP))};
      true -> logging:err("Failed to parse IP ~s",[Str])
   end.
+
+get_http_ver_pair(Str) ->
+   Ver = lists:nth(string:split(Str,"/"),2),
+   [VerMajor, VerMinor] = string:split(Ver, "."),
+   {str2int(VerMajor),str2int(VerMinor)}.
 
 addr2str(Addr)->
    lists:flatten(io_lib:format("~p.~p.~p.~p",Addr)).

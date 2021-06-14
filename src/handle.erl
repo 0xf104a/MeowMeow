@@ -8,11 +8,21 @@
 -include("request.hrl").
 -include("response.hrl").
 
+%% Checks that request is good
+is_good(Request) ->
+   AllowLegacy = configuration:get("AllowLegacyHttp", bool),
+   if not AllowLegacy -> 
+      {Major, Minor} = util:get_http_ver_pair(Request#request.http_ver),
+      ((Major == 1) and (Minor >= 1)) or (Major > 1);
+      true -> true
+   end.
+
 get_ua(Request) ->
    IsKey = maps:is_key("User-Agent", Request#request.header),
    if IsKey -> maps:get("User-Agent", Request#request.header);
       true -> "<<Unknown UA>>"
    end.
+
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
 
@@ -215,6 +225,18 @@ handle(Sock, Upstream, RequestLines) ->
       Upstream ! {send, abort(400)},
       ok;
     {ok, Request} ->
+      IsGood =  is_good(Request),
+      if IsGood ->
+          handle_by_method(Request, Upstream, Sock);
+         true->
+          log_response(Request, 400),
+          Upstream ! {send, abort(400)},
+          Upstream ! close,
+          ok
+      end
+    end.
+  
+handle_by_method(Request, Upstream, Sock) ->
       case Request#request.method of 
            <<"GET">>->
       		Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
@@ -237,8 +259,7 @@ handle(Sock, Upstream, RequestLines) ->
                 Upstream ! {send, abort(405)},
                 Upstream ! close,
                 ok
-      end
-  end.
+      end.
 
 handler(Sock, Upstream, RequestLines) ->
   receive
