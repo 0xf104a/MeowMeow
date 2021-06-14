@@ -82,13 +82,15 @@ rule_send_file(Arg, RawResponse) ->
                                  #{"Content-Length" => erlang:integer_to_list(FSize),
                                    "Server" => ?version,
                                    "Date" => StrTime})},
+                      Response#response.upstream ! cancel_tmr,
                       io_proxy:tcp_send(Response#response.socket, 
                                  response:response_headers(Response#response.headers, 
                                                            Response#response.code)),
-                       handle:send_file(Arg, Response#response.socket, ?chunk_size), 
-                       Response#response{is_finished=true};
-        Any ->         logging:err("Bad stat for ~s: ~p",[Arg, Any]),
-                       {aborted, 500}
+                      handle:send_file(Arg, Response#response.socket, ?chunk_size),
+                      Response#response.upstream ! set_tmr,  
+                      Response#response{is_finished=true};
+        Any ->        logging:err("Bad stat for ~s: ~p",[Arg, Any]),
+                      {aborted, 500}
    end.
 
 register_basic() ->

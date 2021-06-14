@@ -27,6 +27,7 @@ RUN apk add ruby ruby-libs ruby-json ruby-bigdecimal ruby-bundler git
 RUN git clone https://github.com/Andrewerr/SimpleTest
 WORKDIR /testroot/SimpleTest/
 RUN bundle install
+RUN dd if=/dev/urandom of=/var/www/FatCat bs=1024MB count=1 
 
 # Do tests on run
 WORKDIR /

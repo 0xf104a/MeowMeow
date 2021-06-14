@@ -1,17 +1,5 @@
 require "testapi/http.rb"
 
-$testroot = ""
-
-if ENV["TESTROOT"].nil? then
-   puts "TESTS WARNING: TESTROOT is not set. Please use `export TESTROOT=<path to directory with vsn.txt>` to set it."
-else
-   $testroot = ENV["TESTROOT"]
-end
-
-def get_vsn
-  vsn = File.read(File.join($testroot, "vsn.txt"))
-  "MeowMeow/"+vsn.strip
-end
 
 module Tests
   def self.test_header_set
@@ -51,6 +39,6 @@ module Tests
  
   def self.test_send_file
     r = TestHTTP::get("http://localhost/catnip_info")
-    r.code == 200 and r.headers["Server"] == get_vsn and r.data.strip == "Selling catnip to Pusheen the cat is offically prohibited by the cats party."
+    r.code == 200 and r.headers["Server"] == self.get_vsn and r.data.strip == "Selling catnip to Pusheen the cat is offically prohibited by the cats party."
   end
 end
