@@ -1,5 +1,5 @@
 -module(handle).
--export([abort/1, handler_start/1, send_file/3, get_filename/1, stat_file/1]).
+-export([abort/1, close_connection/2, set_keepalive/1, handler_start/1, send_file/3, get_filename/1, stat_file/1]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).

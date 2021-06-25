@@ -13,6 +13,7 @@
 -include("request.hrl").
 -import(response, [update_headers/2]).
 -import(util, [sget2/2, pretty_addr/1]).
+-import(parse_http, [is_close/1]).
 %% API
 -export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0]).
 
@@ -78,16 +79,17 @@ rule_fcgi_exec(Arg, Response) ->
 rule_send_file(Arg, RawResponse) ->
    case handle:stat_file(file:read_file_info(Arg)) of
         {FSize,ok} -> StrTime = util:get_time(),
-                      Response = RawResponse#response{headers = update_headers(RawResponse, 
+                      Response = handle:set_keepalive(RawResponse#response{headers = update_headers(RawResponse, 
                                  #{"Content-Length" => erlang:integer_to_list(FSize),
                                    "Server" => ?version,
-                                   "Date" => StrTime})},
+                                   "Date" => StrTime})}),
                       Response#response.upstream ! cancel_tmr,
                       io_proxy:tcp_send(Response#response.socket, 
                                  response:response_headers(Response#response.headers, 
                                                            Response#response.code)),
                       handle:send_file(Arg, Response#response.socket, ?chunk_size),
-                      Response#response.upstream ! set_tmr,  
+                      Response#response.upstream ! set_tmr,
+                      handle:close_connection(Response#response.request,Response#response.upstream),
                       Response#response{is_finished=true};
         Any ->        logging:err("Bad stat for ~s: ~p",[Arg, Any]),
                       {aborted, 500}
