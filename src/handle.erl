@@ -122,6 +122,7 @@ get_filename(XRoute) ->
       end
   end.
 
+stat_file({error, enoent}) -> {0, no_file};
 stat_file(enoent) -> {0, no_file};
 stat_file(no_file) -> {0, no_file};
 stat_file(unsafe) -> {0, no_access};
@@ -147,7 +148,7 @@ handle_file(Response, Upstream, FName) ->
   Upstream ! cancel_tmr,
   case send_file(FName, Response#response.socket, ?chunk_size) of
        ok -> pass;
-       {failed, Error} -> 
+       {failed, _} -> 
 	logging:warn("Failed to send file, so telling upstream to close connection"),
         Upstream ! close
   end,
@@ -253,7 +254,7 @@ handle_by_method(Request, Upstream, Sock) ->
                 Upstream ! {send, abort(501)},
                 Upstream ! close,
 		ok;
-           Any-> 
+           _ -> 
                 logging:warn("Requested unknown method ~s, just rejecting request", [Request#request.method]),
                 log_response(Request,405),
                 Upstream ! {send, abort(405)},

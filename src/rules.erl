@@ -77,7 +77,9 @@ rule_fcgi_exec(Arg, Response) ->
   end.
 
 rule_send_file(Arg, RawResponse) ->
-   case handle:stat_file(file:read_file_info(Arg)) of
+   FInfo = file:read_file_info(Arg),
+   logging:debug("FInfo: ~p", [FInfo]),
+   case handle:stat_file(FInfo) of
         {FSize,ok} -> StrTime = util:get_time(),
                       Response = handle:set_keepalive(RawResponse#response{headers = update_headers(RawResponse, 
                                  #{"Content-Length" => erlang:integer_to_list(FSize),

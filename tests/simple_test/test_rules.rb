@@ -41,4 +41,9 @@ module Tests
     r = TestHTTP::get("http://localhost/catnip_info")
     r.code == 200 and r.headers["Server"] == self.get_vsn and r.data.strip == "Selling catnip to Pusheen the cat is offically prohibited by the cats party."
   end
+
+  def self.test_send_file_non_extistent
+    r = TestHTTP::get("http://localhost/get_500")
+    r.code == 500
+  end
 end
