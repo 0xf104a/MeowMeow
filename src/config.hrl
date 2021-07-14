@@ -18,4 +18,11 @@
 -define(chunk_size, 1400).
 -define(timeout, 10000).
 -define(configfile, "/etc/MeowMeow/meow.conf").
--define(defconf, #{"DocDir"=>"/var/www/","LogLevel" => "0", "ListenHost" => "127.0.0.1", "KeepAlive"=> "10000", "ListenPort"=>"80", "AllowLegacyHttp"=>"No"}). %% Default configuration
+-define(defconf, #{"DocDir"=>"/var/www/",
+                   "LogLevel" => "0", 
+                   "ListenHost" => "127.0.0.1", 
+                   "KeepAlive"=> "10000", 
+                   "ListenPort"=>"80", 
+                   "AllowLegacyHttp"=>"No",
+                   "MaxPostSize"=>"10240"
+                  }). %% Default configuration

@@ -13,8 +13,10 @@ is_good(Request) ->
    AllowLegacy = configuration:get("AllowLegacyHttp", bool),
    if not AllowLegacy -> 
       {Major, Minor} = util:get_http_ver_pair(Request#request.http_ver),
-      ((Major == 1) and (Minor >= 1)) or (Major > 1);
-      true -> true
+      if ((Major == 1) and (Minor >= 1)) or (Major > 1) -> good;
+         true -> {bad, old_http}
+      end;
+      true -> good
    end.
 
 get_ua(Request) ->
@@ -187,10 +189,13 @@ handle_file(Response, Upstream) ->
       end
   end.
 
-
+handle_abort(Code, Request, Upstream) ->
+  logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+  Upstream ! {send, abort(Code)},
+  Upstream ! close,
+  ok.
 
 handle(Resp, Upstream) ->
-  Route = Resp#response.request#request.route,
   Request = Resp#response.request,
   Rules = access:get_rules(Request),
   R = set_keepalive(Resp),
@@ -216,6 +221,55 @@ handle(Resp, Upstream) ->
   end,
   close_connection(Request, Upstream).
 
+handle_post(Resp, Upstream) ->
+  %% Here we verify the POST request
+  %% It should definitely have
+  %% Content-Length header
+  %% And of course the Content-Length
+  %% should be less or equal to MaxPostSize
+  Request = Resp#response.request,
+  HasLength = maps:is_key("Content-Length",Request#request.header),
+  if not HasLength ->
+       logging:warn("POST request without Content-Length"),
+       handle_abort(411, Request, Upstream);
+     HasLength ->
+       Length = list_to_integer(maps:get("Content-Length",Request#request.header)),
+       MaxLength = configuration:get("MaxPostSize", int),
+       if Length > MaxLength ->
+            logging:warn("POST request payload is too big(~p>~p)",[Length, MaxLength]),
+            handle_abort(413, Request, Upstream);
+          true -> handle_post_unwrapped(Resp, Upstream)
+      end
+  end.
+  
+handle_post_unwrapped(Resp, Upstream) ->
+  Request = Resp#response.request,
+  Rules = access:get_rules(Request),
+  Response = set_keepalive(Resp),
+  Result = do_rules(Rules, Response),
+  case Result of
+    {abort, Code} ->
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+      Upstream ! {send, abort(Code)},
+      Upstream ! close;
+    {finished, Response} ->
+      Code = Response#response.code,
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
+    {done, Response} ->
+      Headers = Response#response.headers,
+      Code = Response#response.code,
+      Body = Response#response.body,
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+      Upstream ! {send, response:response(Headers, Code, Body)};
+    {ok, Response} ->
+      %% There is no default proocedure of handling POST requests
+      %% So they should be handled by rules engine. But if they are
+      %% not we should return HTTP/1.1 405 Method Not Allowed.
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, 405, get_desc(integer_to_list(405))]),
+      Upstream ! {send, abort(405)},
+      Upstream ! close
+  end,
+  close_connection(Request, Upstream).  
 
 handle(Sock, Upstream, RequestLines) ->
   {ok, Peer} = socket:peername(Sock),
@@ -226,12 +280,13 @@ handle(Sock, Upstream, RequestLines) ->
       Upstream ! {send, abort(400)},
       ok;
     {ok, Request} ->
-      IsGood =  is_good(Request),
-      if IsGood ->
+      Result =  is_good(Request),
+      case Result of 
+         good ->
           handle_by_method(Request, Upstream, Sock);
-         true->
-          log_response(Request, 400),
-          Upstream ! {send, abort(400)},
+        {bad, old_http} ->
+          log_response(Request, 505),
+          Upstream ! {send, abort(505)},
           Upstream ! close,
           ok
       end
@@ -240,20 +295,16 @@ handle(Sock, Upstream, RequestLines) ->
 handle_by_method(Request, Upstream, Sock) ->
       case Request#request.method of 
            <<"GET">>->
-      		Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-      		logging:debug("Response=~p", [Response]),
-      		handle(Response, Upstream);
+      		      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      		      logging:debug("Response=~p", [Response]),
+      		      handle(Response, Upstream);
            <<"HEAD">>->
                 Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
                 logging:debug("Response=~p", [Response]),
                 handle(Response, Upstream);
            <<"POST">>->
-                %% In fact, POST should reject request with 405 if not requested CGI or alike resource
-                logging:warn("Method `POST` not yet implemented"),
-                log_response(Request, 501),
-                Upstream ! {send, abort(501)},
-                Upstream ! close,
-		ok;
+                Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+		            handle_post(Response, Upstream);
            _ -> 
                 logging:warn("Requested unknown method ~s, just rejecting request", [Request#request.method]),
                 log_response(Request,405),

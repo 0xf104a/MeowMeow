@@ -89,7 +89,7 @@ fcgi_exec(Arg, Response) ->
     {"HTTP_CONTENT_LENGTH", "0"},
     {"GATEWAY_INTERFACE", "CGI/1.1"},
     {"REMOTE_ADDR", RAddr},
-    {"SERVER_PROTOCOL", "HTTP/1.1"},
+    {"SERVER_PROTOCOL", Request#request.http_ver},
     {"REMOTE_PORT", RPort},
     {"SERVER_ADDR", "0.0.0.0"},
     {"SERVER_PORT", configuration:get("ListenPort",string)},
