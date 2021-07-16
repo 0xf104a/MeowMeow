@@ -11,9 +11,9 @@
 %% Reads request body if it is needed
 %% Should be used by rule handlers
 read_body(Request, Sock) when Request#request.method == <<"POST">> ->
-  ContentLength = parse_http:get_header("Content-Length", Request, int) - length(binary_to_list(Request#request.body)),
+  ContentLength = parse_http:get_header("Content-Length", Request, int) - length(Request#request.body),
   Body = Request#request.body,
-  Request#request{body = string:concat(util:bin2str(Body), io_proxy:tcp_recv(Sock, ContentLength))};
+  Request#request{body = string:concat(Body, io_proxy:tcp_recv(Sock, ContentLength))};
 read_body(Request, _) -> Request.
 
 %% Extracts request from response record
@@ -348,7 +348,7 @@ handler(Sock, Upstream, Request) ->
           not_closed ->
             Upstream ! recv, %% Notify that connection is keep-alive -- need wait for packet
             Upstream ! set_tmr, %% ask to reset keep-alive timer
-            handler(Sock, Upstream, parse_http:make_request(socket:peername(Sock)));
+            handler(Sock, Upstream, parse_http:make_request(util:get_addr(Sock)));
           ok ->
             exit(done)
         end;
@@ -368,5 +368,5 @@ handler_start(Sock) ->
     {upstream, Upstream} ->
       logging:debug("Recieved upstream PID. Starting handling."),
       Upstream ! recv,
-      handler(Sock, Upstream, parse_http:make_request(socket:peername(Sock)))
+      handler(Sock, Upstream, parse_http:make_request(util:get_addr(Sock)))
   end.

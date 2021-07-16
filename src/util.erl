@@ -2,7 +2,7 @@
 -export([addr2str/1, get_http_ver_pair/1, str2addr/1, 
          get_time/0, wildcard2regex/1, check_wildcard/2, 
          tup2list/1, sget/2, sget2/2, pretty_addr/1,
-         bin2str/1]).
+         bin2str/1, get_addr/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -106,8 +106,16 @@ get_http_ver_pair(Str) ->
 addr2str(Addr)->
    lists:flatten(io_lib:format("~p.~p.~p.~p",Addr)).
 
+get_addr(Sock)->
+  Result = socket:peername(Sock),
+  case Result of
+    {ok, AddrInfo} -> maps:get(addr, AddrInfo);
+    Any -> logging:err("Failed to get peername: ~p @ util:get_addr/1",[Any]),
+           {error, Any}
+  end.
 %% Safe conversion of binaries to strings
 bin2str(<<>>) -> "";
+bin2str([]) -> "";
 bin2str(Bin) -> binary_to_list(Bin).
 pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).

@@ -140,34 +140,42 @@ parse_request(SrcAddr, Lines) ->
                     route = Route, header = Map, method = Method, params = Params, body = Body}}
   end.
 
-get_finished_lines(Lines) ->
-  LastLine = lists:nth(length(Lines), Lines),
-  case LastLine of
-    [] -> {Lines,""};
-    Line -> {lists:delete(length(Lines), Lines), Line}
+guard_str(<<>>) -> "";
+guard_str([]) -> "";
+guard_str("") -> "";
+guard_str(S) -> S.
+
+guard_parse_lines(Request, Lines)->
+  Result = string:find(Lines, "\r\n"),
+  case Result of
+    nomatch -> Request#request{unfinished_line = guard_str(Lines)};
+    _ -> parse_lines(Request, Lines)
   end.
+
+unfinished_body(Request, Tail)->
+  string:concat(util:bin2str(Request#request.unfinished_line),util:bin2str(Tail)).
 
 parse_lines(Request, []) -> Request;
 parse_lines(Request, [[]]) -> Request;
 parse_lines(Request, Lines) ->
-  [L | T] = Lines, 
+  [L, T] = string:split(Lines, "\r\n"), 
   logging:debug("L=~p, Lines=~p",[L, Lines]),
   case Request#request.route of
     nil -> 
-      Header = string:trim(binary_to_list(L)),
+      Header = string:trim(L),
       Params = string:split(Header, " ", all),
       if length(Params) /= 3 -> {aborted, 400};
-         true-> parse_lines(Request#request{method=lists:nth(1,Params),
+         true-> guard_parse_lines(Request#request{method=lists:nth(1,Params),
                                             route=lists:nth(2,Params),
                                             http_ver=lists:nth(3,Params)}, T)
       end;
     _ -> 
       case L of
-        <<>> -> Request#request{is_headers_accepted = true};
-        [] -> Request#request{is_headers_accepted = true};
-        "" -> Request#request{is_headers_accepted = true};
+        <<>> -> Request#request{is_headers_accepted = true, body = unfinished_body(Request, T)};
+        [] -> Request#request{is_headers_accepted = true, body = unfinished_body(Request, T)};
+        "" -> Request#request{is_headers_accepted = true, body = unfinished_body(Request, T)};
         BLine ->
-          Line = binary_to_list(BLine),
+          Line = BLine,
           Params = string:split(Line, ":"),
           if length(Params) /= 2 ->
                logging:err("Bad header: ~p", [Params]),
@@ -175,22 +183,14 @@ parse_lines(Request, Lines) ->
              true->
                [K, V] = string:split(Line, ":"),
                Headers = Request#request.header,
-               parse_lines(Request#request{header = maps:merge(Headers, #{K=>string:trim(V)})}, T)
+               guard_parse_lines(Request#request{header = maps:merge(Headers, 
+                                                                     #{binary_to_list(K)=>string:trim(binary_to_list(V))})}, T)
           end
       end
   end.
 
-
-update_request(Request, ALines) ->
-  logging:debug("Request=~p",[Request]),
-  SLines = string:split(ALines, "\r\n", all),
-  {NewLines, Unfinished} = get_finished_lines(SLines),
-  NewRequest = parse_lines(Request, NewLines),
-  case NewRequest of
-    {aborted, Code} -> {aborted, Code};
-    _ -> NewRequest#request{unfinished_line = Unfinished}
-  end.
-
+update_request(Request, Lines) ->
+  parse_lines(Request, string:concat(Request#request.unfinished_line,Lines)).
 
 is_close(Request) ->
   logging:debug("Header=~p",[Request#request.header]),
