@@ -40,6 +40,7 @@ fcgi_send(Response) ->
       io_proxy:tcp_send(Response#response.socket, binary_to_list(Out)),
       fcgi_send(Response)
   end.
+
 fcgi_proxy(FastCGIConnection,Response) ->
   logging:debug("FCGI: entered PROXY"),
   receive
@@ -71,28 +72,58 @@ fcgi_proxy(FastCGIConnection,Response) ->
   end.
   %%Response#response{is_finished=true}.
 
+fcgi_get_content_length(Request) when Request#request.method == <<"POST">> ->
+  parse_http:get_header("Content-Length", Request);
+fcgi_get_content_length(_) -> "0".
+
+fcgi_query_params(Request) ->
+  Q = string:split(Request#request.route, "?"),
+  if length(Q) == 1 -> "";
+     true->
+       Params = lists:nth(2, Q),
+       case Params of
+         [] -> "";
+         Str -> Str
+        end
+  end.
+
+fcgi_get_content_type(Request) ->
+  case parse_http:get_header("Content-Type", Request) of
+    {no_header, _} -> "";
+    Value -> Value 
+  end.
+
+fcgi_get_body(Body) when length(Body) == 0 -> <<>>;
+fcgi_get_body(Body) -> list_to_binary(Body).
+
 fcgi_exec(Arg, Response) ->
   [Script,Host,Port,TryToReconnectEveryMillis] = string:split(Arg, " ",all),
   {ok, FastCGIConnection} = erl_fastcgi:start_link(Host, list_to_integer(Port), list_to_integer(TryToReconnectEveryMillis)),
   RequestId = 600,
-  Request = Response#response.request,
-  Body = "",
+  Request = handle:get_request(Response),
+  Body = Request#request.body,
+  logging:debug("Body = ~p", [Body]),
+  logging:debug("Request = ~p", [Request]),
+  ContentLength = fcgi_get_content_length(Request),
+  ContentType = fcgi_get_content_type(Request),
   {ok, XAddr}=socket:peername(Response#response.socket),
   SAddr = pretty_addr(XAddr),
   Method = binary:bin_to_list(Response#response.request#request.method),
   [RAddr|RPort]=string:split(SAddr,":"),
   ok=erl_fastcgi:run(FastCGIConnection, RequestId, [
     {"SCRIPT_FILENAME", Script},
-    {"QUERY_STRING", Body},
+    {"QUERY_STRING", fcgi_query_params(Request)},
     {"REQUEST_METHOD", Method},
-    {"CONTENT_LENGTH", "0"},
-    {"HTTP_CONTENT_LENGTH", "0"},
+    {"CONTENT_LENGTH", ContentLength},
+    {"HTTP_CONTENT_LENGTH", ContentLength},
+    {"CONTENT_TYPE", ContentType},
+    {"HTTP_CONTENT_TYPE", ContentType},
     {"GATEWAY_INTERFACE", "CGI/1.1"},
     {"REMOTE_ADDR", RAddr},
-    {"SERVER_PROTOCOL", Request#request.http_ver},
+    {"SERVER_PROTOCOL", binary_to_list(Request#request.http_ver)},
     {"REMOTE_PORT", RPort},
     {"SERVER_ADDR", "0.0.0.0"},
     {"SERVER_PORT", configuration:get("ListenPort",string)},
     {"SERVER_NAME", sget2("Host", Request#request.header)}
-  ], <<>>),
+  ], fcgi_get_body(Body)),
   fcgi_proxy(FastCGIConnection, Response).

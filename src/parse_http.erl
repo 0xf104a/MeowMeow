@@ -1,5 +1,8 @@
 -module(parse_http).
--export([http2map/1, mime_by_ext/1, mime_by_fname/1, update_lines/2, is_request_finished/1, make_request/1, parse_request/2, is_close/1]).
+-export([http2map/1, mime_by_ext/1, mime_by_fname/1, update_lines/2, 
+         is_request_finished/1, make_request/1, parse_request/2, 
+         is_close/1, get_header/2, get_header/3, ensure_body/1,
+        update_request/2]).
 -import(util,[sget2/2]).
 -include("config.hrl").
 -include("request.hrl").
@@ -7,7 +10,7 @@
 param2map(List) ->
   if length(List) >= 2 ->
     #{binary_to_list(lists:nth(1, List)) => string:lowercase(binary_to_list(lists:nth(2, List)))};
-    length(List) == 1 -> #{"body" => lists:nth(1, List)};
+    length(List) == 1 -> #{body => lists:nth(1, List)};
     true -> #{}
   end.
 
@@ -23,7 +26,8 @@ http2map(Lines) ->
     logging:debug("Bad header: ~p from ~p", [Header, Lines]),
     {aborted, 400};
   true -> Params = lists:delete(lists:nth(1, Lines), Lines),
-          Parsed = #{method => lists:nth(1, Header), route => lists:nth(2, Header), http_ver => lists:nth(3, Header), body => ""},
+          Parsed = #{method => lists:nth(1, Header), route => lists:nth(2, Header), 
+                     http_ver => lists:nth(3, Header), body => ""},
       {ok, parse_params(Params, Parsed)}
   end.
 
@@ -91,16 +95,28 @@ update_lines(OldLines, Raw) ->
   Lines = string:split(Raw, "\r\n", all),
   magic_merge(OldLines, Lines).
 
+ensure_body(T1) -> 
+  case T1 of
+    <<_>> -> true;
+    _ -> false
+  end.
+
 is_request_finished(Lines) when length(Lines) < 2 -> false;
 is_request_finished(Lines) ->
   T0 = lists:nth(length(Lines), Lines),
   T1 = lists:nth(length(Lines) - 1, Lines),
+  BodySize = length(binary_to_list(T0)),
+  logging:debug("--is_request_finished variable dump--"),
+  logging:debug("T0 = ~p",[T0]),
+  logging:debug("T1 = ~p, ~p",[T1, T1==<<>>]),
+  logging:debug("BodySize = ~p <= 0, ~p",[BodySize, BodySize > 0]),
   if (T0 == <<>>) and (T1 == <<>>) -> true;
-    true -> false
+     (T1 == <<>>) and (BodySize > 0) -> true;
+     true -> false
   end.
 
 make_request(SrcAddr) ->
-  #request{src_addr = SrcAddr, route = bad, header = #{}, method = bad}.
+  #request{src_addr = SrcAddr}.
 
 parse_request(SrcAddr, Lines) ->
   XMap = http2map(Lines),
@@ -113,13 +129,66 @@ parse_request(SrcAddr, Lines) ->
       Method = maps:get(method, Map),
       BinRoute = maps:get(route, Map),
       HttpVer = maps:get(http_ver, Map),
+      Body = maps:get(body, Map),
       logging:debug("BinRoute=~p", [BinRoute]),
       SRoute = binary:split(BinRoute,<<"?">>),
       case SRoute of
            [CRoute] -> Route = CRoute, Params = "";
            [CRoute, CParams] -> Route = CRoute, Params = CParams
       end,
-      {ok, #request{src_addr = SrcAddr, http_ver = HttpVer, route = Route, header = Map, method = Method, params = Params}}
+      {ok, #request{src_addr = SrcAddr, http_ver = HttpVer, 
+                    route = Route, header = Map, method = Method, params = Params, body = Body}}
+  end.
+
+get_finished_lines(Lines) ->
+  LastLine = lists:nth(length(Lines), Lines),
+  case LastLine of
+    [] -> {Lines,""};
+    Line -> {lists:delete(length(Lines), Lines), Line}
+  end.
+
+parse_lines(Request, []) -> Request;
+parse_lines(Request, [[]]) -> Request;
+parse_lines(Request, Lines) ->
+  [L | T] = Lines, 
+  logging:debug("L=~p, Lines=~p",[L, Lines]),
+  case Request#request.route of
+    nil -> 
+      Header = string:trim(binary_to_list(L)),
+      Params = string:split(Header, " ", all),
+      if length(Params) /= 3 -> {aborted, 400};
+         true-> parse_lines(Request#request{method=lists:nth(1,Params),
+                                            route=lists:nth(2,Params),
+                                            http_ver=lists:nth(3,Params)}, T)
+      end;
+    _ -> 
+      case L of
+        <<>> -> Request#request{is_headers_accepted = true};
+        [] -> Request#request{is_headers_accepted = true};
+        "" -> Request#request{is_headers_accepted = true};
+        BLine ->
+          Line = binary_to_list(BLine),
+          Params = string:split(Line, ":"),
+          if length(Params) /= 2 ->
+               logging:err("Bad header: ~p", [Params]),
+               {aborted, 400};
+             true->
+               [K, V] = string:split(Line, ":"),
+               Headers = Request#request.header,
+               parse_lines(Request#request{header = maps:merge(Headers, #{K=>string:trim(V)})}, T)
+          end
+      end
+  end.
+
+
+update_request(Request, ALines) ->
+  logging:debug("Request=~p",[Request]),
+  SLines = string:split(ALines, "\r\n", all),
+  {NewLines, Unfinished} = get_finished_lines(SLines),
+  NewRequest = parse_lines(Request, NewLines),
+  case NewRequest of
+    {aborted, Code} -> {aborted, Code};
+    _ -> NewRequest#request{unfinished_line = Unfinished}
   end.
 
 
@@ -133,4 +202,17 @@ is_close(Request) ->
     Any -> logging:err("Unrecognized connection type: ~p. Either a bug or protocol violation",[Any]),
            true
   end.
+
+get_header(Header, Request) ->
+  Result = util:sget(Header, Request#request.header),
+  case Result of
+    {badkey, Key} -> 
+      {no_header, Key};
+    Value -> string:trim(Value)
+  end.
+
+get_header(Header, Request, int) ->
+  list_to_integer(get_header(Header, Request)).
+
+
 

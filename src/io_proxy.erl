@@ -1,5 +1,5 @@
 -module(io_proxy).
--export([io_proxy_tcp_start/2, tcp_send/2]).
+-export([io_proxy_tcp_start/2, tcp_send/2, tcp_recv/2]).
 -import(erlang, [send_after/3]).
 -include("config.hrl").
 
@@ -16,6 +16,26 @@ tcp_send(Sock, Data) ->
        Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any]),
               {error, Any}
   end.
+
+tcp_recv(_, 0, Data) -> Data;
+tcp_recv(Sock, Size, Data) when Size =< ?chunk_size ->
+  Result = socket:recv(Sock, Size),
+  case Result of 
+    {ok, Payload} -> string:concat(Data,Payload);
+    Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
+           {error, Any}
+  end;
+tcp_recv(Sock, Size, Data)->
+  Result = socket:recv(Sock, ?chunk_size),
+  case Result of
+    {ok, Payload} -> tcp_recv(Sock, Size-?chunk_size, string:concat(Data,Payload));
+    Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
+           {error, Any}
+  end.
+
+tcp_recv(Sock, Size) ->
+  logging:debug("Sz = ~p",[Size]),
+  tcp_recv(Sock, Size, "").
 
 %%send_after(Time, Dest, Msg)->
 %%    Ref=erlang:send_after(Time, Dest, Msg),

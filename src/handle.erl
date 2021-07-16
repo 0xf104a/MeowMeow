@@ -1,5 +1,5 @@
 -module(handle).
--export([abort/1, close_connection/2, set_keepalive/1, handler_start/1, send_file/3, get_filename/1, stat_file/1]).
+-export([abort/1, get_request/1, close_connection/2, set_keepalive/1, handler_start/1, send_file/3, get_filename/1, stat_file/1]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).
@@ -7,6 +7,21 @@
 -include("config.hrl").
 -include("request.hrl").
 -include("response.hrl").
+
+%% Reads request body if it is needed
+%% Should be used by rule handlers
+read_body(Request, Sock) when Request#request.method == <<"POST">> ->
+  ContentLength = parse_http:get_header("Content-Length", Request, int) - length(binary_to_list(Request#request.body)),
+  Body = Request#request.body,
+  Request#request{body = string:concat(util:bin2str(Body), io_proxy:tcp_recv(Sock, ContentLength))};
+read_body(Request, _) -> Request.
+
+%% Extracts request from response record
+%% an receives body if needed
+get_request(Response) -> 
+  Sock = Response#response.socket,
+  Request = Response#response.request,
+  read_body(Request, Sock).
 
 %% Checks that request is good
 is_good(Request) ->
@@ -207,7 +222,7 @@ handle(Resp, Upstream) ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, abort(Code)},
       Upstream ! close;
-    {finished, Response} ->
+    {finished, Response} -> 
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
     {done, Response} ->
@@ -217,7 +232,8 @@ handle(Resp, Upstream) ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
     {ok, Response} ->
-      handle_file(Response, Upstream)
+      handle_file(Response, Upstream);
+    Any -> logging:err("Unhandled rules result: ~p @ handle:handle/2", [Any])
   end,
   close_connection(Request, Upstream).
 
@@ -227,13 +243,14 @@ handle_post(Resp, Upstream) ->
   %% Content-Length header
   %% And of course the Content-Length
   %% should be less or equal to MaxPostSize
+  logging:debug("Entered handle:handle_post/2"),
   Request = Resp#response.request,
   HasLength = maps:is_key("Content-Length",Request#request.header),
   if not HasLength ->
        logging:warn("POST request without Content-Length"),
        handle_abort(411, Request, Upstream);
      HasLength ->
-       Length = list_to_integer(maps:get("Content-Length",Request#request.header)),
+       Length = parse_http:get_header("Content-Length", Request,int),
        MaxLength = configuration:get("MaxPostSize", int),
        if Length > MaxLength ->
             logging:warn("POST request payload is too big(~p>~p)",[Length, MaxLength]),
@@ -245,8 +262,10 @@ handle_post(Resp, Upstream) ->
 handle_post_unwrapped(Resp, Upstream) ->
   Request = Resp#response.request,
   Rules = access:get_rules(Request),
-  Response = set_keepalive(Resp),
-  Result = do_rules(Rules, Response),
+  AResponse = set_keepalive(Resp),
+  logging:debug("Before do_rules @ handle:handle_post_unwrapped/2"),
+  Result = do_rules(Rules, AResponse),
+  logging:debug("Result = ~p", [Result]),
   case Result of
     {abort, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
@@ -261,25 +280,25 @@ handle_post_unwrapped(Resp, Upstream) ->
       Body = Response#response.body,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
-    {ok, Response} ->
+    {ok, _} ->
       %% There is no default proocedure of handling POST requests
       %% So they should be handled by rules engine. But if they are
       %% not we should return HTTP/1.1 405 Method Not Allowed.
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, 405, get_desc(integer_to_list(405))]),
       Upstream ! {send, abort(405)},
-      Upstream ! close
+      Upstream ! close;
+    Any ->
+      logging:err("Unhandled rules result: ~p @ handle:handle_post_unwrapped/2", [Any])
   end,
   close_connection(Request, Upstream).  
 
-handle(Sock, Upstream, RequestLines) ->
-  {ok, Peer} = socket:peername(Sock),
-  Parsed = parse_http:parse_request(maps:get(addr, Peer), RequestLines),
-  case Parsed of
-    bad_request ->
+handle(Sock, Upstream, ARequest) ->
+  case ARequest of
+    {aborted, Code} ->
       logging:debug("Bad request -- responding"),
-      Upstream ! {send, abort(400)},
+      Upstream ! {send, abort(Code)},
       ok;
-    {ok, Request} ->
+    Request ->
       Result =  is_good(Request),
       case Result of 
          good ->
@@ -313,25 +332,29 @@ handle_by_method(Request, Upstream, Sock) ->
                 ok
       end.
 
-handler(Sock, Upstream, RequestLines) ->
+handler(_, Upstream, {aborted, Code})->
+  Upstream ! {send, abort(Code)},
+  Upstream ! close,
+  exit(done);
+handler(Sock, Upstream, Request) ->
   receive
     {data, Data} ->
-      Lines = parse_http:update_lines(RequestLines, Data),
-      logging:debug("Updated lines: ~p", [Lines]),
-      Finished = parse_http:is_request_finished(Lines),
+      ARequest = parse_http:update_request(Request,Data),
+      Finished = ARequest#request.is_headers_accepted,
+      logging:debug("Request finished = ~p", [Finished]),
       if Finished ->
         logging:debug("Finished processing request"),
-        case handle(Sock, Upstream, Lines) of
+        case handle(Sock, Upstream, ARequest) of
           not_closed ->
             Upstream ! recv, %% Notify that connection is keep-alive -- need wait for packet
             Upstream ! set_tmr, %% ask to reset keep-alive timer
-            handler(Sock, Upstream, [""]);
+            handler(Sock, Upstream, parse_http:make_request(socket:peername(Sock)));
           ok ->
             exit(done)
         end;
         true -> ok
       end,
-      handler(Sock, Upstream, Lines);
+      handler(Sock, Upstream, ARequest);
     closed -> %% Connection was closed, does not need to do anything
       exit(closed);
     timeout -> %% Timed-out waiting. Exit gracefully
@@ -345,5 +368,5 @@ handler_start(Sock) ->
     {upstream, Upstream} ->
       logging:debug("Recieved upstream PID. Starting handling."),
       Upstream ! recv,
-      handler(Sock, Upstream, [""])
+      handler(Sock, Upstream, parse_http:make_request(socket:peername(Sock)))
   end.

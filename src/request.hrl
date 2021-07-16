@@ -8,4 +8,7 @@
 %%%-------------------------------------------------------------------
 -author("p01ar").
 
--record(request, {src_addr, route, method, header, http_ver = "HTTP/0.9", body = "", params = ""}).
+-record(request, {src_addr, unfinished_line = "", 
+                  route=nil, method=nil, header=#{}, 
+                  http_ver = "HTTP/0.9", body = "", 
+                  params = "", is_headers_accepted = false}).
