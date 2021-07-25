@@ -155,18 +155,26 @@ guard_parse_lines(Request, Lines)->
 unfinished_body(Request, Tail)->
   string:concat(util:bin2str(Request#request.unfinished_line),util:bin2str(Tail)).
 
+parse_route(Route) ->
+  [R|P] = string:split(Route, "?"),
+  ARoute = guard_str(R),
+  Params = guard_str(P),
+  {ARoute, Params}.
+
 parse_lines(Request, []) -> Request;
 parse_lines(Request, [[]]) -> Request;
 parse_lines(Request, Lines) ->
   [L, T] = string:split(Lines, "\r\n"), 
-  logging:debug("L=~p, Lines=~p",[L, Lines]),
+%%  logging:debug("L=~p, Lines=~p",[L, Lines]),
   case Request#request.route of
     nil -> 
       Header = string:trim(L),
       Params = string:split(Header, " ", all),
       if length(Params) /= 3 -> {aborted, 400};
-         true-> guard_parse_lines(Request#request{method=lists:nth(1,Params),
-                                            route=lists:nth(2,Params),
+         true-> {Route, GetParams} = parse_route(lists:nth(2,Params)),
+                guard_parse_lines(Request#request{method=lists:nth(1,Params),
+                                            route=Route,
+                                            params=GetParams,
                                             http_ver=lists:nth(3,Params)}, T)
       end;
     _ -> 

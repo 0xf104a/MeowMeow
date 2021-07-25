@@ -2,7 +2,7 @@
 -module(fcgi).
 -author("p01ar").
 -import(util,[sget2/2,pretty_addr/1]).
--export([fcgi_exec/2]).
+-export([fcgi_exec/2, fcgi_dir_exec/2]).
 -include("response.hrl").
 -include("request.hrl").
 
@@ -35,7 +35,8 @@ update_response(Out, Response)->
 
 fcgi_send(Response) ->
   receive 
-    {fast_cgi_done, _} -> ok;
+    {fastcgi_request_done, _, _} -> Response;
+    {fast_cgi_done, _} -> Response;
     {fast_cgi_stdout, 600, Out} ->
       io_proxy:tcp_send(Response#response.socket, binary_to_list(Out)),
       fcgi_send(Response)
@@ -69,8 +70,8 @@ fcgi_proxy(FastCGIConnection,Response) ->
       Response#response{code=502, is_finished=true}
   after
     5000 -> erl_fastcgi:close(FastCGIConnection)
-  end.
-  %%Response#response{is_finished=true}.
+  end,
+  Response#response{is_finished=true}.
 
 fcgi_get_content_length(Request) when Request#request.method == <<"POST">> ->
   parse_http:get_header("Content-Length", Request);
@@ -96,9 +97,52 @@ fcgi_get_content_type(Request) ->
 fcgi_get_body(Body) when length(Body) == 0 -> <<>>;
 fcgi_get_body(Body) -> list_to_binary(Body).
 
+fcgi_to_str([]) -> "";
+fcgi_to_str(<<>>) -> "";
+fcgi_to_str(S) -> binary:bin_to_list(S).
+
+fcgi_safe_filename(XRoute, BaseDir) ->
+  Route = fcgi_to_str(XRoute),
+  SafeFName = filelib:safe_relative_path(Route, BaseDir),
+  FileName = filename:join([BaseDir, filelib:safe_relative_path(Route, BaseDir)]),
+  if (SafeFName == unsafe) -> unsafe;
+    true ->
+      FNameIsRegular = filelib:is_regular(FileName),
+      if FNameIsRegular -> FileName; 
+         true -> enoent
+      end
+  end.
+
+fcgi_sjoin(<<>>, []) -> "";
+fcgi_sjoin([], []) -> "";
+fcgi_sjoin("", []) -> "";
+fcgi_sjoin(S, []) -> S;
+fcgi_sjoin(S, A) ->
+  [H|T] = A,
+  case H of
+    <<>> -> fcgi_sjoin(S,T);
+    "" -> fcgi_sjoin(S,T);
+    [] -> fcgi_sjoin(S,T);
+    X -> fcgi_sjoin(S++X,T)
+  end.
+
+fcgi_sjoin(Array) -> fcgi_sjoin("",Array).
+
+fcgi_dir_exec(Arg, Response) ->
+  [BaseDir,RemovePrefix,Host,Port,TryReconnectEveryMillis] = string:split(Arg, " ",all),
+  FName = fcgi_safe_filename(fcgi_sjoin(string:replace(Response#response.request#request.route, RemovePrefix, "")), BaseDir),
+  logging:info("About to execute ~s",[FName]),
+  case FName of
+    enoent -> {aborted, 404};
+    Name -> fcgi_exec(Name, Host, Port, TryReconnectEveryMillis, Response)
+  end.
+
 fcgi_exec(Arg, Response) ->
-  [Script,Host,Port,TryToReconnectEveryMillis] = string:split(Arg, " ",all),
-  {ok, FastCGIConnection} = erl_fastcgi:start_link(Host, list_to_integer(Port), list_to_integer(TryToReconnectEveryMillis)),
+  [Script,Host,Port,TryReconnectEveryMillis] = string:split(Arg, " ",all),
+  fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response).
+
+fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response) ->
+  {ok, FastCGIConnection} = erl_fastcgi:start_link(Host, list_to_integer(Port), list_to_integer(TryReconnectEveryMillis)),
   RequestId = 600,
   Request = handle:get_request(Response),
   Body = Request#request.body,

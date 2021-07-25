@@ -214,8 +214,8 @@ handle(Resp, Upstream) ->
   Request = Resp#response.request,
   Rules = access:get_rules(Request),
   R = set_keepalive(Resp),
-  logging:debug("R=~p", [R]),
-  logging:debug("Rules=~p", [Rules]),
+%%  logging:debug("R=~p", [R]),
+%%  logging:debug("Rules=~p", [Rules]),
   Result = do_rules(Rules, R),
   case Result of
     {abort, Code} ->

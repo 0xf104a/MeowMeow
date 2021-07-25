@@ -2,7 +2,7 @@
 -export([addr2str/1, get_http_ver_pair/1, str2addr/1, 
          get_time/0, wildcard2regex/1, check_wildcard/2, 
          tup2list/1, sget/2, sget2/2, pretty_addr/1,
-         bin2str/1, get_addr/1]).
+         bin2str/1, get_addr/1, prettify_header_key/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -117,5 +117,20 @@ get_addr(Sock)->
 bin2str(<<>>) -> "";
 bin2str([]) -> "";
 bin2str(Bin) -> binary_to_list(Bin).
+
+prettify_header_token(<<>>) -> "";
+prettify_header_token(S) ->
+  string:to_upper(string:slice(S,0,1))++string:slice(string:to_lower(S),1).
+
+prettify_apply(S,[T]) -> S++prettify_header_token(T);
+prettify_apply(S, A) ->
+  [H|T] = A,
+  prettify_apply(S++prettify_header_token(H)++"-",T).
+
+prettify_header_key(K)->
+  Klower = string:lowercase(string:trim(K)),
+  Tokens = string:split(Klower, "-"),
+  prettify_apply("",Tokens).
+
 pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).

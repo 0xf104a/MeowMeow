@@ -61,6 +61,21 @@ rule_set_code(Arg, Response)->
   {Code, []} = string:to_integer(Arg),
   Response#response{code = Code}.
 
+rule_fcgi_dir_exec(Arg, Response) ->
+  StrTime = util:get_time(),
+  Headers = #{
+    "Server" => ?version,
+    "Date" => StrTime
+  },
+  NewResp = Response#response{headers = update_headers(Response, Headers)},
+  try fcgi:fcgi_dir_exec(Arg,NewResp) of
+      Resp -> Resp
+  catch
+      Err -> logging:err("FastCGI seems to be unavailable!"),
+             logging:debug("Error was ~p",[Err]),
+             {aborted, 502}
+  end.
+
 rule_fcgi_exec(Arg, Response) ->
   StrTime = util:get_time(),
   Headers = #{
@@ -106,6 +121,7 @@ register_basic() ->
   register_rule("ExecFCGI", fun(Args, Resp) -> rule_fcgi_exec(Args, Resp) end),
   register_rule("Set-Code", fun(Args, Resp) -> rule_set_code(Args, Resp) end),
   register_rule("Send-File", fun(Args, Resp) -> rule_send_file(Args, Resp) end),
+  register_rule("ExecFCGI-Dir", fun(Args, Resp) -> rule_fcgi_dir_exec(Args, Resp) end),
   ok.
 
 
