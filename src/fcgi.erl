@@ -5,6 +5,7 @@
 -export([fcgi_exec/2, fcgi_dir_exec/2]).
 -include("response.hrl").
 -include("request.hrl").
+-include("config.hrl").
 
 recover_tail("", [X])->X;
 recover_tail(S,[])->S;
@@ -43,9 +44,11 @@ fcgi_send(Response) ->
   end.
 
 fcgi_proxy(FastCGIConnection,Response) ->
+  Upstream = Response#response.upstream,
   logging:debug("FCGI: entered PROXY"),
   receive
-    {fast_cgi_done, _} -> ok;
+    {fast_cgi_done, _} -> Upstream ! set_tmr,
+                          ok;
     {fast_cgi_stdout, 600, ROut} ->
       Out=binary_to_list(ROut),
       io:format("Got: ~p~n", [Out]),
@@ -53,10 +56,11 @@ fcgi_proxy(FastCGIConnection,Response) ->
       logging:debug("FCGI: Updated = ~p",[Updated]),
       case Updated of
            {done, NewResponse, Tail}->
-                 logging:debug("Sending ~p, then ~p",[NewResponse,Tail]),
+                 %%logging:debug("Sending ~p, then ~p",[NewResponse,Tail]),
                  io_proxy:tcp_send(Response#response.socket, response:do_response_headers(NewResponse)),
                  io_proxy:tcp_send(Response#response.socket, Tail),
                  fcgi_send(NewResponse),
+                 Upstream ! set_tmr,
                  NewResponse#response{is_finished=true};
            NewResponse->
                  fcgi_proxy(FastCGIConnection, NewResponse)
@@ -139,10 +143,16 @@ fcgi_dir_exec(Arg, Response) ->
 
 fcgi_exec(Arg, Response) ->
   [Script,Host,Port,TryReconnectEveryMillis] = string:split(Arg, " ",all),
+  Request = Response#response.request,
   fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response).
 
+fcgi_get_scriptname(Path) ->
+  Tokens = string:split(Path, "/", all),
+  "/"++lists:nth(length(Tokens), Tokens).
 fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response) ->
   {ok, FastCGIConnection} = erl_fastcgi:start_link(Host, list_to_integer(Port), list_to_integer(TryReconnectEveryMillis)),
+  Upstream = Response#response.upstream,
+  Upstream ! cancel_tmr,
   RequestId = 600,
   Request = handle:get_request(Response),
   Body = Request#request.body,
@@ -156,8 +166,10 @@ fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response) ->
   [RAddr|RPort]=string:split(SAddr,":"),
   ok=erl_fastcgi:run(FastCGIConnection, RequestId, [
     {"SCRIPT_FILENAME", Script},
-    {"QUERY_STRING", fcgi_query_params(Request)},
+    {"SCRIPT_NAME", fcgi_get_scriptname(Script)},
+    {"QUERY_STRING", Request#request.params},
     {"REQUEST_METHOD", Method},
+    {"REQUEST_URI", binary:bin_to_list(Request#request.route)},
     {"CONTENT_LENGTH", ContentLength},
     {"HTTP_CONTENT_LENGTH", ContentLength},
     {"CONTENT_TYPE", ContentType},
@@ -168,6 +180,7 @@ fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response) ->
     {"REMOTE_PORT", RPort},
     {"SERVER_ADDR", "0.0.0.0"},
     {"SERVER_PORT", configuration:get("ListenPort",string)},
-    {"SERVER_NAME", sget2("Host", Request#request.header)}
+    {"SERVER_NAME", sget2("Host", Request#request.header)},
+    {"SERVER_SOFTWARE", ?version}
   ], fcgi_get_body(Body)),
   fcgi_proxy(FastCGIConnection, Response).

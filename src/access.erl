@@ -66,11 +66,12 @@ get_rules(Request, Array, Rules) ->
            get_rules(Request, T, Rules++[H])
   end.
 
+
 get_rules_checked(Request, {Type, Pattern, List}, Rules, T)->
   case Type of
        route ->
           Route=binary:bin_to_list(Request#request.route),
-          logging:debug("Route=~p, Pattern=~p",[Route,Pattern]),
+%%          logging:debug("Route=~p, Pattern=~p",[Route,Pattern]),
           StatRoute = util:check_wildcard(Route, string:trim(Pattern)),
           if StatRoute -> get_rules(Request, T, Rules ++ get_rules(Request,List,[]));
              true -> get_rules(Request, T, Rules)

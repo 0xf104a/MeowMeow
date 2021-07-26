@@ -87,12 +87,12 @@ abort(_, Code) ->
   abort(Code).
 
 do_rules(_, Response) when Response#response.is_finished -> {finished, Response}; %% Response was sent
-do_rules(_, Response) when Response#response.is_done -> {done, Response}; %% Response is ready to be sent by handler
+do_rules(_, Response) when Response#response.is_done -> {ok, Response}; %% Response is ready to be sent by handler
 do_rules([], Response) -> {ok, Response};
 do_rules(Rules, Response) ->
   [{Rule, Args} | T] = Rules,
   NewResponse = rules:execute_rule(Rule, Args, Response),
-  logging:debug("New response: ~p", [NewResponse]),
+%%  logging:debug("New response: ~p", [NewResponse]),
   case NewResponse of
     {aborted, Code} -> {abort, Code};
     Any -> do_rules(T, Any)
@@ -360,7 +360,9 @@ handler(Sock, Upstream, Request) ->
     timeout -> %% Timed-out waiting. Exit gracefully
       exit(timeout);
     Any ->
-      logging:err("Recieved bad message @ handle:handler/3: ~p", [Any])
+      logging:err("Recieved bad message @ handle:handler/3: ~p", [Any]),
+      Upstream ! {send, abort(500)},
+      exit(error)
   end.
 
 handler_start(Sock) ->

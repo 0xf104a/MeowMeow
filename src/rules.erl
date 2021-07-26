@@ -112,16 +112,28 @@ rule_send_file(Arg, RawResponse) ->
                       {aborted, 500}
    end.
 
+rule_default(_, Response) ->
+  Response#response{is_done=true}.
+
+register_fcgi() ->
+  Enable = configuration:get("EnableFastCGI", bool),
+  if Enable ->
+       logging:warn("FastCGI module has not been tested! Use it carefully. To disable set EnableFastCGI to `no` in /etc/MeowMeow/meow.conf"),
+       register_rule("ExecFCGI", fun(Args, Resp) -> rule_fcgi_exec(Args, Resp) end),
+       register_rule("ExecFCGI-Dir", fun(Args, Resp) -> rule_fcgi_dir_exec(Args, Resp) end);
+     true -> ok
+  end.
+
 register_basic() ->
   logging:info("Registering basic rules"),
+  register_rule("Default", fun(Args, Resp) -> rule_default(Args, Resp) end),
   register_rule("Abort", fun(Args, Resp) -> rule_abort(Args, Resp) end),
   register_rule("No-Content", fun(Args, Resp) -> rule_no_content(Args, Resp) end),
   register_rule("Disallow", fun(Args, Resp) -> rule_disallow(Args, Resp) end),
   register_rule("Set-Header", fun(Args, Resp) -> rule_set_header(Args, Resp) end), 
-  register_rule("ExecFCGI", fun(Args, Resp) -> rule_fcgi_exec(Args, Resp) end),
   register_rule("Set-Code", fun(Args, Resp) -> rule_set_code(Args, Resp) end),
   register_rule("Send-File", fun(Args, Resp) -> rule_send_file(Args, Resp) end),
-  register_rule("ExecFCGI-Dir", fun(Args, Resp) -> rule_fcgi_dir_exec(Args, Resp) end),
+  register_fcgi(),
   ok.
 
 
