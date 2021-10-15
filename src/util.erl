@@ -2,7 +2,8 @@
 -export([addr2str/1, get_http_ver_pair/1, str2addr/1, 
          get_time/0, wildcard2regex/1, check_wildcard/2, 
          tup2list/1, sget/2, sget2/2, pretty_addr/1,
-         bin2str/1, get_addr/1, prettify_header_key/1]).
+         bin2str/1, get_addr/1, prettify_header_key/1,
+         split_list/2, parse_options_line/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -131,6 +132,33 @@ prettify_header_key(K)->
   Klower = string:lowercase(string:trim(K)),
   Tokens = string:split(Klower, "-"),
   prettify_apply("",Tokens).
+
+split_list([], _, SuperList, []) -> SuperList;
+split_list([], _, SuperList, RList) -> SuperList++[RList];
+split_list(List, Token, SuperList, RList) ->
+  [H|T] = List,
+  case H of 
+    Token -> split_list(T, Token, SuperList++[RList], []);
+    Any -> split_list(T, Token, SuperList, RList++[Any])
+  end.
+
+split_list(List, Token) ->
+  split_list(List, Token, [],[]).
+
+%% clean_list remove from list unneccessary tokens(like [] returned by string:split)
+%% and returns new list without them
+clean_list([], _, NewList) -> NewList;
+clean_list(List, Token, NewList) ->
+  [H|T] = List,
+  case H of 
+    Token -> clean_list(T, Token, NewList);
+    Any -> clean_list(T, Token, NewList++[Any])
+  end.
+
+clean_list(List, Token) -> clean_list(List, Token, []).
+
+parse_options_line(L) ->
+  split_list(clean_list(string:split(L, "'", all), []), " ").
 
 pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).
