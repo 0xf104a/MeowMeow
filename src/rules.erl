@@ -53,8 +53,7 @@ rule_no_content(_, Response) ->
 rule_disallow(_, _) ->
   {aborted, 403}.
 
-rule_set_header(Arg, Response) ->
-  [Header|Value] = string:split(Arg, " "),
+rule_set_header([Header, Value], Response) ->
   Response#response{headers = update_headers(Response, #{Header => Value})}.
 
 rule_set_code(Arg, Response)->

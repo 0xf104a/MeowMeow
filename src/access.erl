@@ -11,7 +11,8 @@ get_cmd(Cmd) ->
   if length(L) == 0 -> pass;
      length(L) == 1 -> {string:trim(lists:nth(1, L)), true};
      length(L) > 1 -> [K | V] = L,
-                      {K, V}
+                      Args = lists:nth(1, V),
+                      {K, util:parse_arguments(Args)}
   end.
 
 parse_line(Dev, {ok, Line}) ->
@@ -65,7 +66,7 @@ get_rules(Request, Array, Rules) ->
   case H of
        {Type, Pattern, List} -> 
            get_rules_checked(Request, {Type, Pattern, List}, Rules, T);
-       Any->
+       _->
            get_rules(Request, T, Rules++[H])
   end.
 
