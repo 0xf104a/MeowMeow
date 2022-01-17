@@ -15,6 +15,15 @@ get_cmd(Cmd) ->
                       {K, util:parse_arguments(Args)}
   end.
 
+include_file(FName) ->
+  logging:debug("Including ~p",[FName]),
+  Result = file:open(FName, read),
+  case Result of
+    {ok, Dev} -> parse_section(Result, [], global);
+    Error -> logging:error("Failed to open ~p: ~p @ access:include_file/1"),
+             {error, open}
+  end.
+
 parse_line(Dev, {ok, Line}) ->
   Cmd = get_cmd(string:trim(lists:nth(1, string:split(string:trim(Line), "#")))),
   case Cmd of
@@ -23,6 +32,7 @@ parse_line(Dev, {ok, Line}) ->
     {"Route", [Name]} -> {ok, [{route, Name, parse_section({ok, Dev}, [], Name)}]};
     {"Host", [Name]} -> {ok, [{host, Name, parse_section({ok, Dev}, [], Name)}]};
     {"End", _} -> finish;
+    {"Include", [FName]} -> {ok, include_file(FName)};
     {Key, Value} -> {ok, [{Key, Value}]};
     Any -> logging:err("get_cmd/1 returned unexpected result ~p @ access:parse_line/2", [Any])
   end;
@@ -40,6 +50,7 @@ parse_section({ok, Dev}, R, SectionName) ->
 parse_access(FName) ->
   Dev = file:open(FName, read),
   R = parse_section(Dev, [], global),
+  logging:debug("R=~p",[R]),
   file:close(Dev),
   R.
 

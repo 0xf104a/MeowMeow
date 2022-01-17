@@ -51,4 +51,9 @@ module Tests
     r = TestHTTP::get("http://localhost/quotes_418")
     r.code == 418
   end
+
+  def self.test_include
+    r = TestHTTP::get("http://localhost/absolute_includable_nonsense")
+    r.code == 402
+  end
 end
