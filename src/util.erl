@@ -3,7 +3,7 @@
          get_time/0, wildcard2regex/1, check_wildcard/2, 
          tup2list/1, sget/2, sget2/2, pretty_addr/1,
          bin2str/1, get_addr/1, prettify_header_key/1,
-         split_list/2, parse_options_line/1]).
+         split_list/2, parse_options_line/1, parse_arguments/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -32,7 +32,7 @@ wildcard2regex(Wildcard) ->
 
 tup2list(T) -> tup2list(T, size(T), []).
 
-tup2list(T, 0, Acc) -> Acc;
+tup2list(_, 0, Acc) -> Acc;
 tup2list(T, N, Acc) -> tup2list(T, N - 1, [element(N, T) | Acc]).
 
 check_wildcard(String, Wildcard) ->
@@ -85,7 +85,7 @@ str2int(Str) ->
     case string:to_integer(Str) of
          {R, []} -> R;
          {R, <<>>} -> R;
-         Any -> logging:err("Failed to parse to int: ~p", [Str]),
+         _ -> logging:err("Failed to parse to int: ~p", [Str]),
                 {error, bad_arg}
     end.
 
@@ -162,3 +162,34 @@ parse_options_line(L) ->
 
 pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).
+
+parse_quotes(Str) ->
+  {ok, Regex} = re:compile("\"[A-Za-z0-9@:%._\s\*\+~#=&?\/\']+\"|'[A-Za-z0-9@:%._\+~#=&?\s\*\/\"]+'"),
+  Match = re:run(Str,Regex),
+  case Match of
+    {match, [{Begin, End}]} -> 
+      {string:right(Str, length(Str)-End), string:substr(Str, Begin+2, End-Begin-2)};
+    nomatch ->
+      io:fwrite("~p not matched regex @ util:parse_quotes/1~n", [Str]),
+      nomatch
+  end.
+
+parse_arguments(Str, Parsed) when length(Str) == 0 -> Parsed;
+parse_arguments(Str, Parsed) ->
+  Left = string:left(Str, 1),
+  case Left of
+    "'" -> 
+      {Remaining, Token} = parse_quotes(Str),
+      parse_arguments(string:trim(Remaining), Parsed++[Token]);
+    "\"" ->
+      {Remaining, Token} = parse_quotes(Str),
+      parse_arguments(string:trim(Remaining), Parsed++[Token]);
+    _ ->
+      Result = string:split(Str, " "),
+      case Result of
+        [Token, Remaining] -> parse_arguments(string:trim(Remaining), Parsed++[string:trim(Token)]);
+        [Token] -> Parsed++[string:trim(Token)]
+      end
+  end.
+
+parse_arguments(Str) -> parse_arguments(Str, []).

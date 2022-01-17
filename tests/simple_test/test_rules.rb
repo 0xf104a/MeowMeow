@@ -46,4 +46,9 @@ module Tests
     r = TestHTTP::get("http://localhost/get_500")
     r.code == 500
   end
+
+  def self.test_quotes_abort
+    r = TestHTTP::get("http://localhost/quotes_418")
+    r.code == 418
+  end
 end

@@ -9,9 +9,9 @@ get_cmd("") -> pass;
 get_cmd(Cmd) ->
   L = string:split(Cmd, " "),
   if length(L) == 0 -> pass;
-    length(L) == 1 -> {string:trim(lists:nth(1, L)), true};
-    length(L) > 1 -> [K | V] = L,
-      {K, V}
+     length(L) == 1 -> {string:trim(lists:nth(1, L)), true};
+     length(L) > 1 -> [K | V] = L,
+                      {K, V}
   end.
 
 parse_line(Dev, {ok, Line}) ->
