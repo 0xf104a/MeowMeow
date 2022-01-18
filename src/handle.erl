@@ -89,6 +89,7 @@ abort(_, Code) ->
 do_rules(_, Response) when Response#response.is_finished -> {finished, Response}; %% Response was sent
 do_rules(_, Response) when Response#response.is_done -> {done, Response}; %% Response is ready to be sent by handler
 do_rules([], Response) -> {ok, Response};
+do_rules(_, Response) when Response#response.is_ready -> {ok, Response};
 do_rules(Rules, Response) ->
   [{Rule, Args} | T] = Rules,
   NewResponse = rules:execute_rule(Rule, Args, Response),

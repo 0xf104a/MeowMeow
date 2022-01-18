@@ -112,7 +112,7 @@ rule_send_file(Arg, RawResponse) ->
    end.
 
 rule_default(_, Response) ->
-  Response#response{is_done=true}.
+  Response#response{is_ready=true}.
 
 register_fcgi() ->
   Enable = configuration:get("EnableFastCGI", bool),
