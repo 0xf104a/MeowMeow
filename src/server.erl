@@ -1,5 +1,5 @@
 -module(server).
--export([run/1, run_synchronized/1, start/0, stop/0, start_async/0]).
+-export([run/1, run_synchronized/1, start/0, stop/0, start_async/0, abort_init/1]).
 -import(socket, [create_socket/1, socket_recv/2, socket_accept/3, socket_send/2, socket_recv_all/2]).
 -import(handle, [handle_http11/1, abort/1]).
 -import(parse_http, [http2map/1]).
@@ -98,10 +98,17 @@ Version ~s~n", [?version]),
   configuration:load(),
   rules:init_rules(),
   rules:register_basic(),
-  access:load_access(?accessfile),
-  run_synchronized(configuration:get("ListenPort", int)).
+  case access:load_access(?accessfile) of
+	  ok -> run_synchronized(configuration:get("ListenPort", int));
+	  {error, _} -> logging:err("Refusing to start server due to error while loading access")
+  end.
 
 start_async() -> 
    spawn(fun() -> start() end).
+
 stop() ->
   init:stop().
+
+abort_init(Reason) ->
+  logging:err("Aborting init: ~p", [Reason]),
+  init:stop(255).

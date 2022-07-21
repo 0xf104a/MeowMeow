@@ -19,8 +19,8 @@ include_file(FName) ->
   logging:debug("Including ~p",[FName]),
   Result = file:open(FName, read),
   case Result of
-    {ok, Dev} -> parse_section(Result, [], global);
-    Error -> logging:error("Failed to open ~p: ~p @ access:include_file/1"),
+    {ok, Dev} -> {ok, parse_section(Result, [], global)};
+    Error -> logging:err("Failed to open ~p: ~p @ access:include_file/1", [FName, Error]),
              {error, open}
   end.
 
@@ -32,7 +32,9 @@ parse_line(Dev, {ok, Line}) ->
     {"Route", [Name]} -> {ok, [{route, Name, parse_section({ok, Dev}, [], Name)}]};
     {"Host", [Name]} -> {ok, [{host, Name, parse_section({ok, Dev}, [], Name)}]};
     {"End", _} -> finish;
-    {"Include", [FName]} -> {ok, include_file(FName)};
+    {"Include", [FName]} -> include_file(FName);
+    {error, Reason} -> server:abort_init(Reason),
+		       {error, Reason};
     {Key, Value} -> {ok, [{Key, Value}]};
     Any -> logging:err("get_cmd/1 returned unexpected result ~p @ access:parse_line/2", [Any])
   end;
@@ -43,6 +45,8 @@ parse_section({ok, Dev}, R, SectionName) ->
   Line = file:read_line(Dev),
   case parse_line(Dev, Line) of
     {ok, Data} -> parse_section({ok, Dev}, R ++ Data, SectionName);
+    {error, Err} -> server:abort_init(Err),
+	            {error, Err};	    
     finish -> R;
     Any -> logging:err("parse_line/2 retuned unexpected result: ~p @ access:parse_section/3", [Any])
   end.
@@ -56,11 +60,16 @@ parse_access(FName) ->
 
 load_access(FName) ->
   logging:info("Loading access table from ~s", [FName]),
-  Access = parse_access(FName),
-  access = ets:new(access, [set, named_table]),
-  logging:debug("Created ETS access table"),
-  true = ets:insert(access, {table, Access}),
-  ok.
+  WrappedAccess = parse_access(FName),
+  case WrappedAccess of
+	  {error, Err} -> logging:err("Refusing to load access due to error"),
+			{error, Err};
+	  Access ->
+		  access = ets:new(access, [set, named_table]),
+		  logging:debug("Created ETS access table"),
+		  true = ets:insert(access, {table, Access}),
+		  ok
+  end.
 
 unload() ->
   logging:info("Unloading access table"),
