@@ -51,7 +51,8 @@ Current version support following directives:
 * `KeepAlive <<MS>>` default connection keep-alive time in milliseconds
 * `ListenPort <<PORT>>` port where to listen for connections
 * `ListenHost <<HOSTNAME/IP>>` hostname to listen on
-* `DocDir <<DIRECTORY>>` directory with files to serve  
+* `DocDir <<DIRECTORY>>` directory with files to serve
+
 ## Routes
 To configure routes you need to edit `/etc/MeowMeow/routes.conf`. The syntax is as follows:
 ```
@@ -71,7 +72,47 @@ The directives currently supported by server:
 * `Set-Header <<HEADER>> <<VALUE>>` - sets response header `<<HEADER>>` to `<<VALUE>>`
 * `Set-Code <<CODE>>` sets status code for a response.
 
-You can see an example of routing rules configuration [here](config/routes.conf)
+> [!WARNING]
+> There are, so called, "terminal" directives.
+> They stop further processing of the request and send response to client.
+> In this section those are `Abort`, `No-Content` and `Disallow`. 
+> Modules must specifically tell which directives are terminal.
+
+### Handling the route a few times
+Sometimes, you cannot apply the terminal directive straight ahead. For example, 
+you may want to set a header, then process mimes, and if the host is localhost, do completely something else, but
+keeping the same header. In such a case you may split rules and apply them twice as in example below:
+
+```
+# First set header which will be applied to all routes
+Route *
+  Set-Header X-Powered-By "Pusheen The Cat"
+End
+
+# Now apply mimes
+Include "/etc/MeowMeow/mimes.conf"
+
+# Now apply localhost rule, so if Host header is localhost,
+# we will send localcat.html
+Host localhost
+  Set-Header Content-Type "text/html"
+  Send-File "/var/www/html/localcat.html"
+End
+
+# Finally, apply default rule: send respective file from /var/www/html
+Route *
+  DocDir /var/www/html
+End
+
+# It is impossible to reach this route,
+# since DocDir already would apply to it and
+# send off request to the client.
+Route /never_reachable
+  Abort 418
+End
+```
+
+You can see an example of routing rules configuration [here](config/routes.conf) or in [tests](tests/config/routes.conf)
 
 ## Modules
 From scratch MeowMeow would not serve anything.
@@ -88,9 +129,14 @@ For example, if you would like to server from traditional `/var/www/html`, you m
 ```
 DocDir /var/www/html
 ```
+> [!INFO]
+> This is a terminal rule. It will send off the response and stop further processing.
 
-#### `SendFile`
+#### `Send-File`
 Sends file from a given path. Accepts single argument, which is a path to file.
 ```
-SendFile /opt/meow/nya.html
+Send-File /opt/meow/nya.html
 ```
+
+> [!INFO]
+> This is a terminal rule. It will send off the response and stop further processing.

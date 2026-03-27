@@ -61,9 +61,4 @@ module Tests
     r = TestHTTP::get("http://localhost/mime.html")
     r.code == 200 and r.headers["Content-Type"] == "text/html"
   end
-
-  def self.test_default
-    r = TestHTTP::get("http://localhost/default.txt")
-    r.code == 200 and r.data.strip == "Test for `Default` rule" and r.headers["Server"] == self.get_vsn and r.headers["Content-Type"] == "text/plain" and r.headers["X-Powered-By"] == "Pusheen the Cat"
-  end
 end

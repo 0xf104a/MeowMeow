@@ -24,18 +24,20 @@ rule_send_file(Arg, RawResponse) ->
   FInfo = file:read_file_info(Arg),
   %%logging:debug("FInfo: ~p", [FInfo]),
   case static_handler:stat_file(FInfo) of
-    {FSize,ok} -> StrTime = util:get_time(),
+    {FSize, ok} -> StrTime = util:get_time(),
       Response = handle:set_keepalive(RawResponse#response{headers = response:update_headers(RawResponse,
         #{"Content-Length" => erlang:integer_to_list(FSize),
           "Server" => ?version,
           "Date" => StrTime})}),
+      Response#response.upstream ! {send, response:response_headers(Response#response.headers,
+        Response#response.code)},
       Response#response.upstream ! cancel_tmr,
       static_handler:send_file(Response#response.socket, Arg, FSize),
       Response#response.upstream ! set_tmr,
-      handle:close_connection(Response#response.request,Response#response.upstream),
-      Response#response{is_finished=true};
+      handle:close_connection(Response#response.request, Response#response.upstream),
+      Response#response{is_finished = true};
     Any ->
-      logging:err("Bad stat for ~s: ~p",[Arg, Any]),
+      logging:err("Bad stat for ~s: ~p", [Arg, Any]),
       {aborted, 500}
   end.
 
@@ -47,7 +49,7 @@ init() -> ok.
 
 get_custom_rules() ->
   [
-    {"SendFile", fun(Args, Response) -> rule_send_file(Args, Response) end},
+    {"Send-File", fun(Args, Response) -> rule_send_file(Args, Response) end},
     {"DocDir", fun(Args, Response) -> rule_static_dir(Args, Response) end}
   ].
 
