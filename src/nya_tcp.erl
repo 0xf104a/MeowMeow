@@ -1,5 +1,5 @@
--module(io_proxy).
--export([io_proxy_tcp_start/2, tcp_send/2, tcp_recv/2]).
+-module(nya_tcp).
+-export([nya_tcp_ctl_start/2, tcp_send/2, tcp_recv/2]).
 -import(erlang, [send_after/3]).
 -include("config.hrl").
 
@@ -37,28 +37,22 @@ tcp_recv(Sock, Size) ->
   logging:debug("Sz = ~p", [Size]),
   tcp_recv(Sock, Size, "").
 
-%%send_after(Time, Dest, Msg)->
-%%    Ref=erlang:send_after(Time, Dest, Msg),
-%%    logging:debug("Setted ref=~p",[Ref]),
-%%    Ref.
-
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
-%%  logging:debug("Cancelled ref=~p",[Ref]),
   erlang:cancel_timer(Ref).
-io_proxy_tcp(Sock, Handler, TmRef) ->
+nya_tcp_ctl(Sock, Handler, TmRef) ->
   receive
     {recv, Size} ->
       {ok, Data} = socket:recv(Sock, Size),
       cancel_ref(TmRef),
       Handler ! {data, Data},
       TRef = send_after(?timeout, self(), timeout),
-      io_proxy_tcp(Sock, Handler, TRef);
+      nya_tcp_ctl(Sock, Handler, TRef);
     {send, Data} ->
       cancel_ref(TmRef),
       ok = tcp_send(Sock, Data),
       TRef = send_after(?timeout, self(), timeout),
-      io_proxy_tcp(Sock, Handler, TRef);
+      nya_tcp_ctl(Sock, Handler, TRef);
     recv ->
       case socket:recv(Sock, 0, ?timeout) of
         {ok, Data} ->
@@ -79,7 +73,7 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       cancel_ref(TmRef),
       TRef = send_after(?timeout, self(), timeout),
       logging:debug("Setted TmRef @ io_proxy_tcp/3"),
-      io_proxy_tcp(Sock, Handler, TRef);
+      nya_tcp_ctl(Sock, Handler, TRef);
     close ->
       case socket:peername(Sock) of
         {ok, Addr} -> ok;
@@ -103,9 +97,9 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
     Any ->
       logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/3", [Any])
   end,
-  io_proxy_tcp(Sock, Handler, TmRef).
+  nya_tcp_ctl(Sock, Handler, TmRef).
 
-io_proxy_tcp_start(Sock, Handler) ->
+nya_tcp_ctl_start(Sock, Handler) ->
   Handler ! {upstream, self()},
   TRef = send_after(?timeout, self(), timeout),
-  io_proxy_tcp(Sock, Handler, TRef).
+  nya_tcp_ctl(Sock, Handler, TRef).

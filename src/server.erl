@@ -8,10 +8,11 @@
 
 handle_connection(Sock) ->
   case socket:peername(Sock) of
-    {ok, Addr} ->
-      logging:debug("Addr = ~p @server.erl:19", [Addr]),
+    {ok, _} ->
+      %% Start middleware process
       PidHandler = spawn(fun() -> handle:handler_start(Sock) end),
-      spawn(fun() -> io_proxy:io_proxy_tcp_start(Sock, PidHandler) end);
+      %% Start TCP communication flow control process
+      spawn(fun() -> nya_tcp:nya_tcp_ctl_start(Sock, PidHandler) end);
     {error, enotconn} ->
       logging:warn("Unexpected disconnect of a client. Maybe a port scan?");
     {error, Any} ->
@@ -88,7 +89,7 @@ __  /|_/ /_  _ \\  __ \\_ | /| / /_  /|_/ /_  _ \\  __ \\_ | /| / /
 _  /  / / /  __/ /_/ /_ |/ |/ /_  /  / / /  __/ /_/ /_ |/ |/ / 
 /_/  /_/  \\___/\\____/____/|__/ /_/  /_/  \\___/\\____/____/|__/  
                                                                
-...nya^^~
+...nya^^~~
 
 Version ~s~n", [?version]),
   configuration:load(),

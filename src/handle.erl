@@ -1,4 +1,12 @@
+%%%-------------------------------------------------------------------
+%%% @author f104a
+%%% @copyright (C) 2018, 2020, 2026, Anna-Sofia Kasierocka
+%%% @doc
+%%% This module contains a process responsible for parsing HTTP headers.
+%%% @end
+%%%-------------------------------------------------------------------
 -module(handle).
+-author("f104a").
 -export([abort/1, get_request/1, close_connection/2, set_keepalive/1,
   handler_start/1, get_ua/1, abort/2, log_response/2]).
 -import(response, [response/3, get_desc/1, set_header/3]).
@@ -14,7 +22,7 @@
 read_body(Request, Sock) when Request#request.method == <<"POST">> ->
   ContentLength = parse_http:get_header("Content-Length", Request, int) - length(Request#request.body),
   Body = Request#request.body,
-  Request#request{body = string:concat(Body, io_proxy:tcp_recv(Sock, ContentLength))};
+  Request#request{body = string:concat(Body, nya_tcp:tcp_recv(Sock, ContentLength))};
 read_body(Request, _) -> Request.
 
 %% Extracts request from response record
@@ -118,25 +126,26 @@ handle(Resp, Upstream) ->
 %%  logging:debug("Rules=~p", [Rules]),
   Result = do_rules(Rules, ResponseWithKeepAlive),
   case Result of
+    %% Aborted response: an error happend
     {abort, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, abort(Code)},
       Upstream ! close;
+    %% Response was sent off by module, no need to care about data
     {finished, Response} -> 
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
+    %% Module provided string to respond with
     {done, Response} ->
       Headers = Response#response.headers,
       Code = Response#response.code,
       Body = Response#response.body,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
-    {ok, X} ->
-      logging:err("Direct file sending is now deprecated!"),
-      logging:debug("Got file data ~p", [X]);
+    %% Module has given non-standard result: it is actually gateway problem
     Any ->
       logging:err("Unhandled rules result: ~p @ handle:handle/2", [Any]),
-      Upstream ! {send, abort(500)},
+      Upstream ! {send, abort(502)},
       Upstream ! close
   end,
   close_connection(Request, Upstream).
@@ -275,5 +284,6 @@ handler_start(Sock) ->
     {upstream, Upstream} ->
       logging:debug("Recieved upstream PID. Starting handling."),
       Upstream ! recv,
-      handler(Sock, Upstream, parse_http:make_request(util:get_addr(Sock)))
+      handler(Sock, Upstream,
+        parse_http:make_request(util:get_addr(Sock)))
   end.

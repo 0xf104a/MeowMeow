@@ -2,11 +2,11 @@
 %%% @author f104a
 %%% @copyright (C) 2020, 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%   Configuration storage
+%%%   Configuration storage and parsing
 %%% @end
 %%%-------------------------------------------------------------------
 -module(configuration).
--author("p01ar").
+-author("f104a").
 
 %% API
 -export([load/0, get/1, get/2]).

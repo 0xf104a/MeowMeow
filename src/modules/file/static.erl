@@ -30,7 +30,7 @@ rule_send_file(Arg, RawResponse) ->
           "Server" => ?version,
           "Date" => StrTime})}),
       Response#response.upstream ! cancel_tmr,
-      io_proxy:tcp_send(Response#response.socket,
+      nya_tcp:tcp_send(Response#response.socket,
         response:response_headers(Response#response.headers,
           Response#response.code)),
       static_handler:send_file(Arg, Response#response.socket, ?chunk_size),

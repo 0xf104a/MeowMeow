@@ -42,6 +42,8 @@ execute_rule(Rule, Args, Response) ->
 rule_abort(Args, _) ->
   {aborted, list_to_integer(lists:nth(1, Args))}.
 
+rule_no_content(_, close) ->
+  logging:err("Received closed response in No-Content. Probably other rule has finished request earlier");
 rule_no_content(_, Response) ->
   StrTime = util:get_time(),
   Headers = #{
@@ -54,19 +56,20 @@ rule_no_content(_, Response) ->
 rule_disallow(_, _) ->
   {aborted, 403}.
 
+rule_set_header(_, close) ->
+  logging:err("Received closed response in Set-Header. Probably other rule has finished request earlier");
 rule_set_header([Header, Value], Response) ->
   Response#response{headers = update_headers(Response, #{Header => Value})}.
+
+rule_set_code(_, close) ->
+  logging:err("Received closed response in Set-Code. Probably other rule has finished request earlier");
 
 rule_set_code(Arg, Response)->
   {Code, []} = string:to_integer(Arg),
   Response#response{code = Code}.
 
-rule_default(_, Response) ->
-  Response#response{is_ready=true}.
-
 register_basic() ->
   logging:info("Registering basic rules"),
-  register_rule("Default", fun(Args, Resp) -> rule_default(Args, Resp) end),
   register_rule("Abort", fun(Args, Resp) -> rule_abort(Args, Resp) end),
   register_rule("No-Content", fun(Args, Resp) -> rule_no_content(Args, Resp) end),
   register_rule("Disallow", fun(Args, Resp) -> rule_disallow(Args, Resp) end),

@@ -16,7 +16,7 @@
 send_chunks(Dev, Sock, Sz) ->
   case file:read(Dev, Sz) of
     {ok, Data} ->
-      case io_proxy:tcp_send(Sock, Data) of
+      case nya_tcp:tcp_send(Sock, Data) of
         ok -> send_chunks(Dev, Sock, Sz);
         Error -> logging:err("Failed to send chunk: ~p @ handle:send_chunks/3", [Error]),
           {failed, Error}
@@ -90,22 +90,27 @@ handle_file(Response, Upstream, FName) ->
       logging:warn("Failed to send file, so telling upstream to close connection"),
       Upstream ! close
   end,
-  Upstream ! set_tmr.
+  Upstream ! set_tmr,
+  ok.
+
+get_filename_or_indexname(DocDir, Route) ->
+  case get_filename(DocDir, Route) of
+    {index, FStat} ->
+      {true, FStat};
+    FStat -> {false, FStat}
+  end.
 
 %% We need Content-Type for indexes(as mimes.conf unlikely to match those)
 maybe_set_html_content_type(true, Headers) ->
   maps:put("Content-Type", "text/html", Headers);
 maybe_set_html_content_type(false, Headers) -> Headers.
+
 handle_file(DocDir, Response) ->
   Route = Response#response.request#request.route,
   Request = Response#response.request,
   Method = Response#response.request#request.method,
   Upstream = Response#response.upstream,
-  {IsIndex, FStat} = case get_filename(DocDir, Route) of
-    {index, FStat} ->
-      {true, FStat};
-    FStat -> {false, FStat}
-  end,
+  {IsIndex, FStat} = get_filename_or_indexname(DocDir, Route),
   logging:debug("~p ~p ~p", [FStat, DocDir, Route]),
   case stat_file(FStat) of
     {0, no_file} ->
@@ -123,15 +128,16 @@ handle_file(DocDir, Response) ->
     {ContentSize, ok} ->
       StrTime = util:get_time(),
       ResponseHeadered = response:set_headers(Response,
-        maybe_set_html_content_type(IsIndex,#{
-        "Content-Length" => integer_to_list(ContentSize),
-        "Date" => StrTime,
-        "Server" => ?version})),
+        maybe_set_html_content_type(IsIndex, #{
+          "Content-Length" => integer_to_list(ContentSize),
+          "Date" => StrTime,
+          "Server" => ?version})),
       {FName, _} = FStat,
       case Method of
         <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName);
         <<"HEAD">> -> Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
         Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2", [Any]),
           Upstream ! {send, handle:abort(500)}
-      end
+      end,
+      {finished, Response}
   end.
