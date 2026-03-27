@@ -22,6 +22,5 @@
                    "KeepAlive"=> "10000", 
                    "ListenPort"=>"80", 
                    "AllowLegacyHttp"=>"No",
-                   "MaxPostSize"=>"10240",
-                   "EnableFastCGI"=>"No"
+                   "MaxPostSize"=>"10240"
                   }). %% Default configuration

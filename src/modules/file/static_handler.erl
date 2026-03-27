@@ -1,12 +1,11 @@
 %%%-------------------------------------------------------------------
 %%% @author f104a
-%%% @copyright (C) 2026, <COMPANY>
+%%% @copyright (C) 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%
+%%% Internal procedure related sending files and locating index files
 %%% @end
-%%% Created : 26. бер 2026 18:45
 %%%-------------------------------------------------------------------
--module(handler).
+-module(static_handler).
 -author("f104a").
 -include("../../request.hrl").
 -include("../../response.hrl").
@@ -19,7 +18,7 @@ send_chunks(Dev, Sock, Sz) ->
     {ok, Data} ->
       case io_proxy:tcp_send(Sock, Data) of
         ok -> send_chunks(Dev, Sock, Sz);
-        Error -> logging:err("Failed to send chunk: ~p @ handle:send_chunks/3",[Error]),
+        Error -> logging:err("Failed to send chunk: ~p @ handle:send_chunks/3", [Error]),
           {failed, Error}
       end;
     eof -> ok
@@ -29,7 +28,7 @@ send_file(FName, Sock, ChunkSz) ->
   logging:debug("Sending file: ~p", [FName]),
   case file:open(FName, read) of
     {ok, Dev} -> send_chunks(Dev, Sock, ChunkSz);
-    Any -> logging:err("Unexpected result while opening the file ~s: ~p",[FName, Any]),
+    Any -> logging:err("Unexpected result while opening the file ~s: ~p", [FName, Any]),
       {failed, Any}
   end.
 
@@ -42,15 +41,20 @@ wrap_fname_stat(FName) ->
 
 get_filename(DocDir, XRoute) ->
   Route = binary:bin_to_list(XRoute, {1, string:length(XRoute) - 1}),
-  SafeFName = filelib:safe_relative_path(Route, DocDir),
-  SafeIName = filelib:safe_relative_path(Route ++ "index.html", DocDir),
-  FileName = filename:join([DocDir, filelib:safe_relative_path(Route, DocDir)]),
-  IndexName = filename:join([DocDir, filelib:safe_relative_path(Route ++ "index.html", DocDir)]),
-  if (SafeIName == unsafe) or (SafeFName == unsafe) -> unsafe;
+  IndexInDocDir = string:strip(filename:join([Route, "index.html"]), left, $/),
+  FNameInDocDir = string:strip(Route),
+  logging:debug("~p ~p", [IndexInDocDir, FNameInDocDir]),
+  SafeFName = filelib:safe_relative_path(FNameInDocDir, DocDir),
+  SafeIName = filelib:safe_relative_path(IndexInDocDir, DocDir),
+  FileName = filename:join([DocDir, SafeFName]),
+  IndexName = filename:join([DocDir, SafeIName]),
+  if (SafeIName == unsafe) or (SafeFName == unsafe) ->
+    logging:warn("Request route '~s' is unsafe", [Route]),
+    unsafe;
     true ->
       IndexExists = filelib:is_regular(IndexName),
       FNameIsRegular = filelib:is_regular(FileName),
-      if IndexExists -> wrap_fname_stat(IndexName);
+      if IndexExists -> {index, wrap_fname_stat(IndexName)};
         FNameIsRegular -> wrap_fname_stat(FileName);
         true -> enoent
       end
@@ -60,14 +64,14 @@ stat_file({error, enoent}) -> {0, no_file};
 stat_file(enoent) -> {0, no_file};
 stat_file(no_file) -> {0, no_file};
 stat_file(unsafe) -> {0, no_access};
-stat_file(eacces) -> {0,no_access};
-stat_file({FName,FInfo}) ->
-  logging:debug("Stat: ~p, FInfo: ~p", [FName,FInfo]),
+stat_file(eacces) -> {0, no_access};
+stat_file({FName, FInfo}) ->
+  logging:debug("Stat: ~p, FInfo: ~p", [FName, FInfo]),
   Access = FInfo#file_info.access,
   FSize = FInfo#file_info.size,
   if (Access /= read) and (Access /= read_write) -> {0, no_access};
     FSize == 0 -> {0, empty_file};
-    FInfo#file_info.type /= regular -> logging:warn("Attempting to send irregular file: ~s",[FName]),
+    FInfo#file_info.type /= regular -> logging:warn("Attempting to send irregular file: ~s", [FName]),
       {0, no_file};
     true -> {FSize, ok}
   end.
@@ -88,12 +92,21 @@ handle_file(Response, Upstream, FName) ->
   end,
   Upstream ! set_tmr.
 
+%% We need Content-Type for indexes(as mimes.conf unlikely to match those)
+maybe_set_html_content_type(true, Headers) ->
+  maps:put("Content-Type", "text/html", Headers);
+maybe_set_html_content_type(false, Headers) -> Headers.
 handle_file(DocDir, Response) ->
   Route = Response#response.request#request.route,
   Request = Response#response.request,
   Method = Response#response.request#request.method,
   Upstream = Response#response.upstream,
-  FStat = get_filename(DocDir, Route),
+  {IsIndex, FStat} = case get_filename(DocDir, Route) of
+    {index, FStat} ->
+      {true, FStat};
+    FStat -> {false, FStat}
+  end,
+  logging:debug("~p ~p ~p", [FStat, DocDir, Route]),
   case stat_file(FStat) of
     {0, no_file} ->
       Upstream ! {send, handle:abort(Method, 404)},
@@ -109,15 +122,16 @@ handle_file(DocDir, Response) ->
       Upstream ! close;
     {ContentSize, ok} ->
       StrTime = util:get_time(),
-      ResponseHeadered = response:set_headers(Response, #{
+      ResponseHeadered = response:set_headers(Response,
+        maybe_set_html_content_type(IsIndex,#{
         "Content-Length" => integer_to_list(ContentSize),
         "Date" => StrTime,
-        "Server" => ?version}),
+        "Server" => ?version})),
       {FName, _} = FStat,
       case Method of
         <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName);
-        <<"HEAD">> ->  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
-        Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2",[Any]),
+        <<"HEAD">> -> Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
+        Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2", [Any]),
           Upstream ! {send, handle:abort(500)}
       end
   end.

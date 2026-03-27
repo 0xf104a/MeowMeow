@@ -44,6 +44,11 @@ get_ua(Request) ->
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
 
+%%% @doc
+%%%  Function that generates error responses.
+%%%  Should not be used to generate 1xx, 2xx and 3xx responses,
+%%%  beyond legacy exemption of 204 No Content
+%%% @end
 abort(Code) ->
   Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
   StrTime = get_time(),
@@ -126,10 +131,9 @@ handle(Resp, Upstream) ->
       Body = Response#response.body,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
-    {ok, _} ->
+    {ok, X} ->
       logging:err("Direct file sending is now deprecated!"),
-      Upstream ! {send, abort(500)},
-      Upstream ! close;
+      logging:debug("Got file data ~p", [X]);
     Any ->
       logging:err("Unhandled rules result: ~p @ handle:handle/2", [Any]),
       Upstream ! {send, abort(500)},
