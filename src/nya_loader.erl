@@ -1,8 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% @author f104a
-%%% @copyright (C) 2026, <COMPANY>
+%%% @copyright (C) 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%
+%%%  This module is responsible for loading nya_modules and handling
+%%%  `LoadModules` directive in meow.conf
 %%% @end
 %%%-------------------------------------------------------------------
 -module(nya_loader).

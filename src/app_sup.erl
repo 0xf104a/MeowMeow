@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
-%%% @author p01ar
-%%% @copyright (C) 2020, Polar Group
+%%% @author f104a
+%%% @copyright (C) 2020, Anna-Sofia Kasierocka
 %%% @doc
 %%%   Supervisor for MeowMeow webserver
 %%% @end

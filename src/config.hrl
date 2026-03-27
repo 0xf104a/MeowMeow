@@ -1,21 +1,20 @@
 %%%-------------------------------------------------------------------
-%%% @author p01ar
-%%% @copyright (C) 2020, Polar Group
+%%% @author f104a
+%%% @copyright (C) 2020, 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%  Build config for MeowMeow Webserver
+%%%  Buildtime config for MeowMeow Webserver
 %%% @end
 %%%-------------------------------------------------------------------
 %%DONE:Config file
--author("p01ar").
+-author("f104a").
 -record(sockaddr_in4, {family = inet, port = 8888, addr = {0, 0, 0, 0}}).
 -define(CHUNK_SIZE, 2048).
 -define(version, "MeowMeow/2.0-alpha1").
 -define(accessfile, "/etc/MeowMeow/routes.conf").
+-define(configfile, "/etc/MeowMeow/meow.conf").
 -define(max_request_length, 10000).
--define(mime_types_file, "/etc/MeowMeow/mime.types").
 -define(chunk_size, 1400).
 -define(timeout, list_to_integer(configuration:get("KeepAlive"))).
--define(configfile, "/etc/MeowMeow/meow.conf").
 -define(defconf, #{"DocDir"=>"/var/www/",
                    "LogLevel" => "0", 
                    "ListenHost" => "127.0.0.1", 

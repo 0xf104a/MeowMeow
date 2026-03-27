@@ -1,13 +1,14 @@
 %%%-------------------------------------------------------------------
-%%% @author p01ar
-%%% @copyright (C) 2020, Polar Group
+%%% @author f104a
+%%% @copyright (C) 2020, 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%  MeowMeow webserver rules handler
+%%%  MeowMeow webserver base rules.
+%%%  Contains rule storing logic and base rules available
+%%%  without modules
 %%% @end
-%%% Created : 26. авг. 2020 19:00
 %%%-------------------------------------------------------------------
 -module(rules).
--author("p01ar").
+-author("f104a").
 -include("config.hrl").
 -include("response.hrl").
 -include("request.hrl").

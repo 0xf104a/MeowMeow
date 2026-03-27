@@ -1,15 +1,17 @@
 %%%-------------------------------------------------------------------
+%%% @author f104a
+%%% @copyright (C) 2026, Anna-Sofia Kasierocka
 %%% @doc
 %%%   Behaviour definition for MeowMeow handler modules.
 %%%
-%%%   Any module that wants to be loaded dynamically by module_manager
+%%%   Any module that wants to be loaded dynamically by nya_loader
 %%%   must implement this behaviour.
 %%%
 %%%   Callbacks:
 %%%     init/1        – called once at startup with module config (proplist).
 %%%                     Return {ok, State} or {error, Reason}.
-%%%     handle_request/2 – called per request.
-%%%                     Returns {ok, Response} | {error, Reason}.
+%%%     get_custom_rules/0 - returns custom rules which may be used to invoke
+%%%                          this module on some routes defined in configuration.
 %%%
 %%%     terminate/1   – called on clean shutdown.
 %%% @end

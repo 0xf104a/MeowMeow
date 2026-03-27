@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
-%%% @author p01ar
-%%% @copyright (C) 2020, Polar Group
+%%% @author f104a
+%%% @copyright (C) 2020, Anna-Sofia Kasierocka
 %%% @doc
-%%%  response record definition
+%%%  Response record definition
 %%% @end
 %%%-------------------------------------------------------------------
--author("p01ar").
+-author("f104a").
 
 %% record response
 %% request – data sent by client

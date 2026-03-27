@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
-%%% @author p01ar
-%%% @copyright (C) 2020, Polar Group
+%%% @author f104a
+%%% @copyright (C) 2020, Anna-Sofia Kasierocka
 %%% @doc
 %%%   Request record definitions
 %%% @end
 %%%-------------------------------------------------------------------
--author("p01ar").
+-author("f104a").
 
 -record(request, {src_addr, unfinished_line = "", 
                   route=nil, method=nil, header=#{}, 

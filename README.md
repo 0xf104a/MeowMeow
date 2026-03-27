@@ -1,26 +1,31 @@
-# MeowMeow webserver (formerly Ghost WebServer)
+# MeowMeow
 [![Erlang CI](https://github.com/Andrewerr/MeowMeow/actions/workflows/erlang.yml/badge.svg)](https://github.com/Andrewerr/MeowMeow/actions/workflows/erlang.yml)
 [![Publish Docker image](https://github.com/Andrewerr/MeowMeow/actions/workflows/docker.yml/badge.svg)](https://github.com/Andrewerr/MeowMeow/actions/workflows/docker.yml)
 [![Tests](https://github.com/Andrewerr/MeowMeow/actions/workflows/test.yml/badge.svg)](https://github.com/Andrewerr/MeowMeow/actions/workflows/test.yml)
-## Abstract
-This is simple web server written in plain erlang.
-## Erlang version
-`Erlang/OTP 23` is required to run this server. `Erlang/OTP 24` is reccommended.
-## Running
-### Debug mode
-The best way to debug the program is just to do as following:
+
+# Erlang version
+Lastly, tested on Erlang/OTP 28, and it is the recommended version now.
+# Running
+## Configuration
+First, you need to copy configurations:
+```bash
+cp -r configs/ /etc/MeowMeow/ # You may need sudot
 ```
-$ cd src/
-$ erlc *.erl && erl; rm -rf ./*.beam # This will rebuild everything from scratch, so there would be no problems with cached files
-...
-Eshell V11.2  (abort with ^G)
-1> server:start().
+
+Alternatively, you may edit [src/config.hrl](src/config.hrl):
+```erlang
+%%...
+%% Replace /etc/MeowMeow/ with your desired path to configs
+-define(accessfile, "/etc/MeowMeow/routes.conf").
+-define(configfile, "/etc/MeowMeow/meow.conf").
+%%...
 ```
-Before using this approach don't forget to create configuration files:
+## Debug mode
+The best way to debug the program is just to run it with rebar3:
+```bash
+rebar3 shell
 ```
-$ cp -r configs/ /etc/MeowMeow/ # Porbably you will need root(i.e. sudo)
-```
-### Production mode 
+## Production mode 
 Compile using rebar3:
 ```
 $ rebar3 as prod release
@@ -31,13 +36,11 @@ $ ./_build/prod/rel/MeowMeow/bin/MeowMeow <desired mode of running>
 ```
 If you need help on modes of running just execute script with no arguments to get help. 
 
-## Using
-Put your files in `/var/www/` directory they will be served statically. Currently FastCGI support available for serving files wich are not static.
-## Configuring
+# Configuring
 
 **IMPORTANT NOTICE:** In current version syntax errors in config are **NOT** checked, so misconfiguration may lead to fatal errors.
 
-### Server
+## Server
 Server configuration is stored in `/etc/MeowMeow/meow.conf`. The syntax is as follows:
 ```
 Directive1 Args
@@ -49,7 +52,7 @@ Current version support following directives:
 * `ListenPort <<PORT>>` port where to listen for connections
 * `ListenHost <<HOSTNAME/IP>>` hostname to listen on
 * `DocDir <<DIRECTORY>>` directory with files to serve  
-### Routes
+## Routes
 To configure routes you need to edit `/etc/MeowMeow/routes.conf`. The syntax is as follows:
 ```
 Route <wildcard pattern> 
@@ -66,16 +69,28 @@ The directives currently supported by server:
 * `No-Content` - sends `HTTP/1.1 204 No Content` to client
 * `Disallow` - sends `HTTP/1.1 403 Forbidden` to client
 * `Set-Header <<HEADER>> <<VALUE>>` - sets response header `<<HEADER>>` to `<<VALUE>>`
-* `ExecFCGI <<FILE>> <<FCGI_HOST>> <<FCGI_PORT>> <<FCGI_TIMEOUT>>` - asks FastCGI running on `<<FCGI_HOST>>:<<FCGI_PORT>>` to execute `<<FILE>>` with timeout of `<<FCGI_TIMEOUT>>` ms
 * `Set-Code <<CODE>>` sets status code for a response.
-* `Send-File <<PATH>>` sends file as a response.
 
-You can see an example of routing rules configuration [here](https://github.com/Andrewerr/MeowMeow/blob/master/tests/config/routes.conf)
-## Credits 
-* erl_fastcgi - Copyright 2017, Marcelo Gornstein <marcelog@gmail.com> (Apache-2.0 license).<br> Changes introduced(file: `src/erl_fastcgi.erl`):
-  * Added logging integrated with MeowMeow webserver
-  * Added handling of errors when FastCGI server is down
-## Code copyrighting
-The code copyrightings defined in some of the files in `src/` directory are not legal advice and purposed for internal use only. 
-All code, except mentioned in **Credits** section, is licensed under MIT license(See [LICENSE](LICENSE) for more information)
+You can see an example of routing rules configuration [here](config/routes.conf)
 
+## Modules
+From scratch MeowMeow would not serve anything.
+Default configuration, though loads module `static` which serves static files from `/var/www/` directory by default.
+If you need any additional modules or do not want to static you should edit `/etc/MeowMeow/modules.conf` file:
+```
+LoadModules <module1>,<module2>...
+```
+### static
+Static module is intended to serve static files.
+#### `DocDir`
+Automatically serves any file from a given directory. 
+For example, if you would like to server from traditional `/var/www/html`, you may write:
+```
+DocDir /var/www/html
+```
+
+#### `SendFile`
+Sends file from a given path. Accepts single argument, which is a path to file.
+```
+SendFile /opt/meow/nya.html
+```
