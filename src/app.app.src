@@ -1,7 +1,7 @@
 {application, app, [
   {description, "A tiny webserver written in erlang"},
-  {vsn, "1.02-prebeta-r12"},
-  {modules, []},
+  {vsn, "2.0-alpha1"},
+  {modules, [handle, response]},
   {registered, [app_sup]},
   {applications, [
     kernel,

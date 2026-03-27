@@ -3,9 +3,9 @@
 -author("p01ar").
 -import(util,[sget2/2,pretty_addr/1]).
 -export([fcgi_exec/2, fcgi_dir_exec/2]).
--include("response.hrl").
--include("request.hrl").
--include("config.hrl").
+-include("../../response.hrl").
+-include("../../request.hrl").
+-include("../../config.hrl").
 
 recover_tail("", [X])->X;
 recover_tail(S,[])->S;
@@ -184,3 +184,33 @@ fcgi_exec(Script, Host, Port, TryReconnectEveryMillis, Response) ->
     {"SERVER_SOFTWARE", ?version}
   ], fcgi_get_body(Body)),
   fcgi_proxy(FastCGIConnection, Response).
+
+rule_fcgi_dir_exec(Arg, Response) ->
+  StrTime = util:get_time(),
+  Headers = #{
+    "Server" => ?version,
+    "Date" => StrTime
+  },
+  NewResp = Response#response{headers = response:update_headers(Response, Headers)},
+  try fcgi:fcgi_dir_exec(Arg,NewResp) of
+    Resp -> Resp
+  catch
+    Err -> logging:err("FastCGI seems to be unavailable!"),
+      logging:debug("Error was ~p",[Err]),
+      {aborted, 502}
+  end.
+
+rule_fcgi_exec(Arg, Response) ->
+  StrTime = util:get_time(),
+  Headers = #{
+    "Server" => ?version,
+    "Date" => StrTime
+  },
+  NewResp = Response#response{headers = response:update_headers(Response, Headers)},
+  try fcgi:fcgi_exec(Arg,NewResp) of
+    Resp -> Resp
+  catch
+    Err -> logging:err("FastCGI seems to be unavailable!"),
+      logging:debug("Error was ~p",[Err]),
+      {aborted, 502}
+  end.

@@ -164,8 +164,8 @@ parse_route(Route) ->
 parse_lines(Request, []) -> Request;
 parse_lines(Request, [[]]) -> Request;
 parse_lines(Request, Lines) ->
-  [L, T] = string:split(Lines, "\r\n"), 
-%%  logging:debug("L=~p, Lines=~p",[L, Lines]),
+  [L, T] = string:split(Lines, "\r\n"),
+  logging:debug("L=~p, Lines=~p",[L, Lines]),
   case Request#request.route of
     nil -> 
       Header = string:trim(L),
@@ -198,7 +198,7 @@ parse_lines(Request, Lines) ->
   end.
 
 update_request(Request, Lines) ->
-  parse_lines(Request, string:concat(Request#request.unfinished_line,Lines)).
+  parse_lines(Request, string:concat(Request#request.unfinished_line, Lines)).
 
 is_close(Request) ->
   logging:debug("Header=~p",[Request#request.header]),

@@ -4,7 +4,6 @@
 %%% @doc
 %%%   Configuration storage
 %%% @end
-%%% Created : 30. сент. 2020 13:31
 %%%-------------------------------------------------------------------
 -module(configuration).
 -author("p01ar").

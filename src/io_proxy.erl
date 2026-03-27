@@ -5,36 +5,36 @@
 
 tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
   case socket:send(Sock, Data) of
-       ok -> ok;
-       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any]),
-              {error,Any}
+    ok -> ok;
+    Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2", [Any]),
+      {error, Any}
   end;
 tcp_send(Sock, Data) ->
   {H, T} = lists:split(?chunk_size, Data),
   case socket:send(Sock, H) of
-       ok -> tcp_send(Sock, T);
-       Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2",[Any]),
-              {error, Any}
+    ok -> tcp_send(Sock, T);
+    Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2", [Any]),
+      {error, Any}
   end.
 
 tcp_recv(_, 0, Data) -> Data;
 tcp_recv(Sock, Size, Data) when Size =< ?chunk_size ->
   Result = socket:recv(Sock, Size),
-  case Result of 
-    {ok, Payload} -> string:concat(Data,Payload);
+  case Result of
+    {ok, Payload} -> string:concat(Data, Payload);
     Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
-           {error, Any}
+      {error, Any}
   end;
-tcp_recv(Sock, Size, Data)->
+tcp_recv(Sock, Size, Data) ->
   Result = socket:recv(Sock, ?chunk_size),
   case Result of
-    {ok, Payload} -> tcp_recv(Sock, Size-?chunk_size, string:concat(Data,Payload));
+    {ok, Payload} -> tcp_recv(Sock, Size - ?chunk_size, string:concat(Data, Payload));
     Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
-           {error, Any}
+      {error, Any}
   end.
 
 tcp_recv(Sock, Size) ->
-  logging:debug("Sz = ~p",[Size]),
+  logging:debug("Sz = ~p", [Size]),
   tcp_recv(Sock, Size, "").
 
 %%send_after(Time, Dest, Msg)->
@@ -56,7 +56,7 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       io_proxy_tcp(Sock, Handler, TRef);
     {send, Data} ->
       cancel_ref(TmRef),
-      ok=tcp_send(Sock, Data),
+      ok = tcp_send(Sock, Data),
       TRef = send_after(?timeout, self(), timeout),
       io_proxy_tcp(Sock, Handler, TRef);
     recv ->
@@ -82,9 +82,9 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       io_proxy_tcp(Sock, Handler, TRef);
     close ->
       case socket:peername(Sock) of
-           {ok, Addr} -> ok;
-           Any ->Addr=#{addr=>{nan, nan, nan, nan},port=>nan}, 
-                 logging:err("Failed to get peername while closing connection: ~p @ io_proxy_tcp/3",[Any])
+        {ok, Addr} -> ok;
+        Any -> Addr = #{addr => {nan, nan, nan, nan}, port => nan},
+          logging:err("Failed to get peername while closing connection: ~p @ io_proxy_tcp/3", [Any])
       end,
       logging:info("Closing connection with ~p", [util:pretty_addr(Addr)]),
       socket:close(Sock),
@@ -92,13 +92,13 @@ io_proxy_tcp(Sock, Handler, TmRef) ->
       exit(requested);
     timeout ->
       case socket:peername(Sock) of
-           {ok, Addr} ->
-      		logging:info("Killing connection with ~p due to timeout", [util:pretty_addr(Addr)]),
-      		socket:close(Sock),
-      		cancel_ref(TmRef),
-      		exit(timeout);
-           {error, Err} ->
- 		logging:err("Peername error while handling timeout: ~p @ io_porxy_tcp/3", [Err])
+        {ok, Addr} ->
+          logging:info("Killing connection with ~p due to timeout", [util:pretty_addr(Addr)]),
+          socket:close(Sock),
+          cancel_ref(TmRef),
+          exit(timeout);
+        {error, Err} ->
+          logging:err("Peername error while handling timeout: ~p @ io_proxy_tcp/3", [Err])
       end;
     Any ->
       logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/3", [Any])

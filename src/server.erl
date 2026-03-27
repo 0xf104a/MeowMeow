@@ -98,6 +98,7 @@ Version ~s~n", [?version]),
   configuration:load(),
   rules:init_rules(),
   rules:register_basic(),
+  nya_loader:nya_load_all(),
   case access:load_access(?accessfile) of
 	  ok -> run_synchronized(configuration:get("ListenPort", int));
 	  {error, _} -> logging:err("Refusing to start server due to error while loading access")

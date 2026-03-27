@@ -3,7 +3,7 @@
          get_time/0, wildcard2regex/1, check_wildcard/2, 
          tup2list/1, sget/2, sget2/2, pretty_addr/1,
          bin2str/1, get_addr/1, prettify_header_key/1,
-         split_list/2, parse_options_line/1, parse_arguments/1]).
+         split_list/2, parse_options_line/1, parse_arguments/1, parse_list/1]).
 -include("config.hrl").
 
 %% This part of code converts wildcards to regex
@@ -193,3 +193,7 @@ parse_arguments(Str, Parsed) ->
   end.
 
 parse_arguments(Str) -> parse_arguments(Str, []).
+
+parse_list(StrList) ->
+  Items = string:split(StrList, ","),
+  [string:strip(Item) || Item <- Items].

@@ -6,8 +6,8 @@ COPY tests/simple_test tests
 COPY tests/vsn.txt /tests/vsn.txt
 RUN mkdir /testroot
 WORKDIR /testroot
-RUN apk add ruby ruby-libs ruby-json ruby-bigdecimal ruby-bundler git
-RUN git clone https://github.com/Andrewerr/SimpleTest
+RUN apk add ruby ruby-libs ruby-bigdecimal ruby-bundler ruby-dev gcc git
+RUN git clone https://github.com/0xf104a/SimpleTest
 WORKDIR /testroot/SimpleTest/
 RUN bundle install
 

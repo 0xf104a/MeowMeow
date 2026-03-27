@@ -1,5 +1,6 @@
 -module(handle).
--export([abort/1, get_request/1, close_connection/2, set_keepalive/1, handler_start/1, send_file/3, get_filename/1, stat_file/1]).
+-export([abort/1, get_request/1, close_connection/2, set_keepalive/1,
+  handler_start/1, get_ua/1, abort/2, log_response/2]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).
@@ -42,26 +43,6 @@ get_ua(Request) ->
 
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
-
-send_chunks(Dev, Sock, Sz) ->
-  case file:read(Dev, Sz) of
-    {ok, Data} ->
-      case io_proxy:tcp_send(Sock, Data) of
-           ok -> send_chunks(Dev, Sock, Sz);
-           Error -> logging:err("Failed to send chunk: ~p @ handle:send_chunks/3",[Error]),
-                    {failed, Error}
-      end;
-    eof -> ok
-  end.
-
-send_file(FName, Sock, ChunkSz) ->
-  logging:debug("Sending file: ~p", [FName]),
-  case file:open(FName, read) of
-    {ok, Dev} -> send_chunks(Dev, Sock, ChunkSz);
-    Any -> logging:err("Unexpected result while opening the file ~s: ~p",[FName, Any]),
-           {failed, Any}
-  end.
-
 
 abort(Code) ->
   Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
@@ -118,93 +99,6 @@ set_keepalive(Response) ->
       set_header(Response, "Connection", "keep-alive")
   end.
 
-wrap_fname_stat(FName) ->
-  case file:read_file_info(FName) of
-       {error, Err} -> Err;
-       {ok, FInfo} -> {FName, FInfo}
-  end.
-
-get_filename(XRoute) ->
-  Route = binary:bin_to_list(XRoute, {1, string:length(XRoute) - 1}),
-  SafeFName = filelib:safe_relative_path(Route, ?docdir),
-  SafeIName = filelib:safe_relative_path(Route ++ "index.html", ?docdir),
-  FileName = filename:join([?docdir, filelib:safe_relative_path(Route, ?docdir)]),
-  IndexName = filename:join([?docdir, filelib:safe_relative_path(Route ++ "index.html", ?docdir)]),
-  if (SafeIName == unsafe) or (SafeFName == unsafe) -> unsafe;
-    true ->
-      IndexExists = filelib:is_regular(IndexName),
-      FNameIsRegular = filelib:is_regular(FileName),
-      if IndexExists -> wrap_fname_stat(IndexName);
-         FNameIsRegular -> wrap_fname_stat(FileName);
-         true -> enoent
-      end
-  end.
-
-stat_file({error, enoent}) -> {0, no_file};
-stat_file(enoent) -> {0, no_file};
-stat_file(no_file) -> {0, no_file};
-stat_file(unsafe) -> {0, no_access};
-stat_file(eacces) -> {0,no_access};
-stat_file({FName,FInfo}) ->
-  logging:debug("Stat: ~p, FInfo: ~p", [FName,FInfo]),
-  Access = FInfo#file_info.access,
-  FSize = FInfo#file_info.size,
-  if (Access /= read) and (Access /= read_write) -> {0, no_access};
-    FSize == 0 -> {0, empty_file};
-    FInfo#file_info.type /= regular -> logging:warn("Attempting to send irregular file: ~s",[FName]),
-			               {0, no_file};
-    true -> {FSize, ok}
-  end.
-
-handle_file(Response, Upstream, _FName) when Response#response.request#request.method == "HEAD" ->
-  log_response(Response#response.request, 200),
-  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
-handle_file(Response, Upstream, FName) ->
-  logging:debug("Response=~p", [Response]),
-  log_response(Response#response.request, 200),
-  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)},
-  Upstream ! cancel_tmr,
-  case send_file(FName, Response#response.socket, ?chunk_size) of
-       ok -> pass;
-       {failed, _} -> 
-	logging:warn("Failed to send file, so telling upstream to close connection"),
-        Upstream ! close
-  end,
-  Upstream ! set_tmr.
-
-handle_file(Response, Upstream) ->
-  Route = Response#response.request#request.route,
-  Request = Response#response.request,
-  Method = Response#response.request#request.method,
-  FStat = get_filename(Route),
-  case stat_file(FStat) of
-    {0, no_file} ->
-      Upstream ! {send, abort(Method, 404)},
-      log_response(Request, 404),
-      Upstream ! close;
-    {0, no_access} ->
-      Upstream ! {send, abort(Method, 403)},
-      log_response(Request, 403),
-      Upstream ! close;
-    {0, empty_file} ->
-      Upstream ! {send, abort(<<"HEAD">>, 204)},
-      log_response(Request, 204),
-      Upstream ! close;
-    {ContentSize, ok} ->
-      StrTime = util:get_time(),
-      ResponseHeadered = response:set_headers(Response, #{
-        "Content-Length" => integer_to_list(ContentSize),
-        "Date" => StrTime,
-        "Server" => ?version}),
-      {FName, _} = FStat,
-      case Method of
-           <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName);
-           <<"HEAD">> ->  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
-           Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2",[Any]),
-                  Upstream ! {send, abort(500)}
-      end
-  end.
-
 handle_abort(Code, Request, Upstream) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
   Upstream ! {send, abort(Code)},
@@ -214,10 +108,10 @@ handle_abort(Code, Request, Upstream) ->
 handle(Resp, Upstream) ->
   Request = Resp#response.request,
   Rules = access:get_rules(Request),
-  R = set_keepalive(Resp),
+  ResponseWithKeepAlive = set_keepalive(Resp),
 %%  logging:debug("R=~p", [R]),
 %%  logging:debug("Rules=~p", [Rules]),
-  Result = do_rules(Rules, R),
+  Result = do_rules(Rules, ResponseWithKeepAlive),
   case Result of
     {abort, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
@@ -232,9 +126,14 @@ handle(Resp, Upstream) ->
       Body = Response#response.body,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
-    {ok, Response} ->
-      handle_file(Response, Upstream);
-    Any -> logging:err("Unhandled rules result: ~p @ handle:handle/2", [Any])
+    {ok, _} ->
+      logging:err("Direct file sending is now deprecated!"),
+      Upstream ! {send, abort(500)},
+      Upstream ! close;
+    Any ->
+      logging:err("Unhandled rules result: ~p @ handle:handle/2", [Any]),
+      Upstream ! {send, abort(500)},
+      Upstream ! close
   end,
   close_connection(Request, Upstream).
 
@@ -246,7 +145,7 @@ handle_post(Resp, Upstream) ->
   %% should be less or equal to MaxPostSize
   logging:debug("Entered handle:handle_post/2"),
   Request = Resp#response.request,
-  HasLength = maps:is_key("Content-Length",Request#request.header),
+  HasLength = maps:is_key("Content-Length", Request#request.header),
   if not HasLength ->
        logging:warn("POST request without Content-Length"),
        handle_abort(411, Request, Upstream);
@@ -337,6 +236,7 @@ handler(_, Upstream, {aborted, Code})->
   Upstream ! {send, abort(Code)},
   Upstream ! close,
   exit(done);
+
 handler(Sock, Upstream, Request) ->
   receive
     {data, Data} ->

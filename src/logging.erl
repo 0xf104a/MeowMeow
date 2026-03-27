@@ -22,7 +22,7 @@ log_write(Level, Colour, Msg) ->
   LogVerbose = get_verbosity(Level),
   LogLevel = configuration:get("LogLevel",int),
   if LogVerbose =< LogLevel ->
-    io:fwrite("\r~s~s~s~s~s|~s:~s~s~n", [Colour, ?BOLD, level2str(Level), ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]);
+    io:fwrite("\r~s~s~s~s~s|~s: ~s~s~n", [Colour, ?BOLD, level2str(Level), ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]);
     true -> ok
   end.
 
@@ -32,7 +32,7 @@ log_write(Level, Colour, MsgFmt, Args) ->
   LogLevel = configuration:get("LogLevel",int),
   Msg = lists:flatten(io_lib:format(MsgFmt, Args)),
   if LogVerbose =< LogLevel ->
-    io:fwrite("\r~s~s~s~s~s|~s:~s~s~n", [Colour, ?BOLD, level2str(Level), ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]);
+    io:fwrite("\r~s~s~s~s~s|~s: ~s~s~n", [Colour, ?BOLD, level2str(Level), ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]);
     true -> ok
   end.
 

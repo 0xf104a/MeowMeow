@@ -342,7 +342,3 @@ pad(0, Acc) ->
 
 pad(Size, Acc) ->
   pad(Size - 1, <<Acc/binary, 0>>).
-
-%% @doc Kills server if something gone wrong
-die()->
-  exit(fcgi_dead).
