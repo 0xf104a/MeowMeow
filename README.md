@@ -129,7 +129,7 @@ For example, if you would like to server from traditional `/var/www/html`, you m
 ```
 DocDir /var/www/html
 ```
-> [!INFO]
+> [!IMPORTANT]
 > This is a terminal rule. It will send off the response and stop further processing.
 
 #### `Send-File`
@@ -138,5 +138,5 @@ Sends file from a given path. Accepts single argument, which is a path to file.
 Send-File /opt/meow/nya.html
 ```
 
-> [!INFO]
+> [!IMPORTANT]
 > This is a terminal rule. It will send off the response and stop further processing.

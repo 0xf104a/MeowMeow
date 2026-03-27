@@ -20,17 +20,16 @@ init_mcp() ->
   ets:new(mcp_sessions, [set, public, named_table]),
   ok.
 
+clamp_visible(Bin) ->
+  << <<($A + (Byte rem ($z - $A)))>> || <<Byte>> <= Bin >>.
+
 generate_session_id(ByteLength) ->
-  % 1. Generate cryptographically strong random bytes
   Bytes = crypto:strong_rand_bytes(ByteLength),
-  % 2. Encode to Base64
   Encoded = base64:encode(Bytes),
-  % 3. Make it URL/Header safe (replace + with -, / with _, and strip =)
-  binary:replace(
-    binary:replace(
-      binary:replace(Encoded, <<"+">>, <<"-">>, [global]),
-      <<"/">>, <<"_">>, [global]),
-    <<"=">>, <<>>, [global]).
+  clamp_visible(Encoded).
+
+is_mcp
+
 generate_session_id() -> generate_session_id(64).
 
 start_mcp_session(Tool) ->
@@ -43,8 +42,10 @@ kill_mcp_session(SessionId) ->
     [{SessionId, {_, Port}}] ->
       logging:info("Killing MCP session ~p", [SessionId]),
       Port ! {close, self()},
+      ets:delete(mcp_sessions, SessionId),
       ok;
     [] ->
       not_found
   end.
+
 
