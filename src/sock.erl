@@ -1,6 +1,7 @@
 -module(sock).
 -export([create_socket/1, socket_recv/2, socket_send/3, socket_shutdown/2, socket_accept/1, socket_recv_all/2, split_list/2]).
 -define(chunk_wait_timeout, 10).
+
 split_list(List, Max) ->
   element(1, lists:foldl(fun
                            (E, {[Buff | Acc], C}) when C < Max ->
@@ -30,7 +31,7 @@ socket_accept(LSock) ->
   {ok, Sock} = gen_tcp:accept(LSock),
   Sock.
 
-socket_send_packets(Sock, []) ->
+socket_send_packets(_, []) ->
   ok;
 socket_send_packets(Sock, Packets) ->
   [H | T] = Packets,

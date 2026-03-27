@@ -3,8 +3,6 @@
 -include("config.hrl").
 -include("request.hrl").
 
-
-
 get_cmd("") -> pass;
 get_cmd(Cmd) ->
   L = string:split(Cmd, " "),
@@ -19,7 +17,7 @@ include_file(FName) ->
   logging:debug("Including ~p",[FName]),
   Result = file:open(FName, read),
   case Result of
-    {ok, Dev} -> {ok, parse_section(Result, [], global)};
+    {ok, _} -> {ok, parse_section(Result, [], global)};
     Error -> logging:err("Failed to open ~p: ~p @ access:include_file/1", [FName, Error]),
              {error, open}
   end.

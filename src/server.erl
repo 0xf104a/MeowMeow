@@ -6,12 +6,6 @@
 -include_lib("kernel/include/inet.hrl").
 -include("config.hrl").
 
-tup2list(Tuple) -> tup2list(Tuple, 1, tuple_size(Tuple)).
-
-tup2list(Tuple, Pos, Size) when Pos =< Size ->
-  [element(Pos, Tuple) | tup2list(Tuple, Pos + 1, Size)];
-tup2list(_Tuple, _Pos, _Size) -> [].
-
 handle_connection(Sock) ->
   case socket:peername(Sock) of
     {ok, Addr} ->
