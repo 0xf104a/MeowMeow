@@ -58,10 +58,10 @@ is_request_finished(Lines) ->
   T0 = lists:nth(length(Lines), Lines),
   T1 = lists:nth(length(Lines) - 1, Lines),
   BodySize = length(binary_to_list(T0)),
-  logging:debug("--is_request_finished variable dump--"),
-  logging:debug("T0 = ~p",[T0]),
-  logging:debug("T1 = ~p, ~p",[T1, T1==<<>>]),
-  logging:debug("BodySize = ~p <= 0, ~p",[BodySize, BodySize > 0]),
+  %%logging:debug("--is_request_finished variable dump--"),
+  %%logging:debug("T0 = ~p",[T0]),
+  %%logging:debug("T1 = ~p, ~p",[T1, T1==<<>>]),
+  %%logging:debug("BodySize = ~p <= 0, ~p",[BodySize, BodySize > 0]),
   if (T0 == <<>>) and (T1 == <<>>) -> true;
      (T1 == <<>>) and (BodySize > 0) -> true;
      true -> false
@@ -72,7 +72,7 @@ make_request(SrcAddr) ->
 
 parse_request(SrcAddr, Lines) ->
   XMap = http2map(Lines),
-  logging:debug("XMap=~p", [XMap]),
+  %%logging:debug("XMap=~p", [XMap]),
   case XMap of
     {aborted, 400} ->
       logging:info("~p.~p.~p.~p -- 400 Bad Request", util:tup2list(SrcAddr)),
@@ -82,7 +82,7 @@ parse_request(SrcAddr, Lines) ->
       BinRoute = maps:get(route, Map),
       HttpVer = maps:get(http_ver, Map),
       Body = maps:get(body, Map),
-      logging:debug("BinRoute=~p", [BinRoute]),
+      %%logging:debug("BinRoute=~p", [BinRoute]),
       SRoute = binary:split(BinRoute,<<"?">>),
       case SRoute of
            [CRoute] -> Route = CRoute, Params = "";
@@ -116,7 +116,7 @@ parse_lines(Request, []) -> Request;
 parse_lines(Request, [[]]) -> Request;
 parse_lines(Request, Lines) ->
   [L, T] = string:split(Lines, "\r\n"),
-  logging:debug("L=~p, Lines=~p",[L, Lines]),
+  %%logging:debug("L=~p, Lines=~p",[L, Lines]),
   case Request#request.route of
     nil -> 
       Header = string:trim(L),
@@ -151,7 +151,7 @@ update_request(Request, Lines) ->
   parse_lines(Request, string:concat(Request#request.unfinished_line, Lines)).
 
 is_close(Request) ->
-  logging:debug("Header=~p",[Request#request.header]),
+  %%logging:debug("Header=~p",[Request#request.header]),
   case string:trim(sget2("Connection", Request#request.header)) of
     {badkey, "Connection"} -> true;
     "" -> true;

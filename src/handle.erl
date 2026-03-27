@@ -82,8 +82,8 @@ abort(_, Code) ->
 
 do_rules(_, Response) when Response#response.is_finished -> {finished, Response}; %% Response was sent
 do_rules(_, Response) when Response#response.is_done -> {done, Response}; %% Response is ready to be sent by handler
-do_rules([], Response) -> {ok, Response};
-do_rules(_, Response) when Response#response.is_ready -> {ok, Response};
+do_rules([], Response) -> Response;
+do_rules(_, Response) when Response#response.is_ready -> Response;
 do_rules(Rules, Response) ->
   [{Rule, Args} | T] = Rules,
   NewResponse = rules:execute_rule(Rule, Args, Response),
@@ -178,7 +178,7 @@ handle_post_unwrapped(Resp, Upstream) ->
   AResponse = set_keepalive(Resp),
   logging:debug("Before do_rules @ handle:handle_post_unwrapped/2"),
   Result = do_rules(Rules, AResponse),
-  logging:debug("Result = ~p", [Result]),
+  %%logging:debug("Result = ~p", [Result]),
   case Result of
     {abort, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
@@ -228,11 +228,11 @@ handle_by_method(Request, Upstream, Sock) ->
       case Request#request.method of 
            <<"GET">>->
       		      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-      		      logging:debug("Response=~p", [Response]),
+      		      %%logging:debug("Response=~p", [Response]),
       		      handle(Response, Upstream);
            <<"HEAD">>->
                 Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-                logging:debug("Response=~p", [Response]),
+                %%logging:debug("Response=~p", [Response]),
                 handle(Response, Upstream);
            <<"POST">>->
                 Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
@@ -255,7 +255,7 @@ handler(Sock, Upstream, Request) ->
     {data, Data} ->
       ARequest = parse_http:update_request(Request,Data),
       Finished = ARequest#request.is_headers_accepted,
-      logging:debug("Request finished = ~p", [Finished]),
+      %%logging:debug("Request finished = ~p", [Finished]),
       if Finished ->
         logging:debug("Finished processing request"),
         case handle(Sock, Upstream, ARequest) of

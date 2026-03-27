@@ -22,7 +22,7 @@
 
 rule_send_file(Arg, RawResponse) ->
   FInfo = file:read_file_info(Arg),
-  logging:debug("FInfo: ~p", [FInfo]),
+  %%logging:debug("FInfo: ~p", [FInfo]),
   case static_handler:stat_file(FInfo) of
     {FSize,ok} -> StrTime = util:get_time(),
       Response = handle:set_keepalive(RawResponse#response{headers = response:update_headers(RawResponse,
@@ -30,10 +30,7 @@ rule_send_file(Arg, RawResponse) ->
           "Server" => ?version,
           "Date" => StrTime})}),
       Response#response.upstream ! cancel_tmr,
-      nya_tcp:tcp_send(Response#response.socket,
-        response:response_headers(Response#response.headers,
-          Response#response.code)),
-      static_handler:send_file(Arg, Response#response.socket, ?chunk_size),
+      static_handler:send_file(Response#response.socket, Arg, FSize),
       Response#response.upstream ! set_tmr,
       handle:close_connection(Response#response.request,Response#response.upstream),
       Response#response{is_finished=true};

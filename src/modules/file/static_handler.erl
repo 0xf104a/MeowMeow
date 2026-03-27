@@ -13,25 +13,22 @@
 -include_lib("kernel/include/file.hrl").
 -export([handle_file/2, send_file/3, stat_file/1]).
 
-send_chunks(Dev, Sock, Sz) ->
-  case file:read(Dev, Sz) of
-    {ok, Data} ->
-      case nya_tcp:tcp_send(Sock, Data) of
-        ok -> send_chunks(Dev, Sock, Sz);
-        Error -> logging:err("Failed to send chunk: ~p @ handle:send_chunks/3", [Error]),
-          {failed, Error}
-      end;
-    eof -> ok
-  end.
+send_file(Socket, Path, Size) ->
+  send_file(Socket, Path, Size, <<>>).
 
-send_file(FName, Sock, ChunkSz) ->
-  logging:debug("Sending file: ~p", [FName]),
-  case file:open(FName, read) of
-    {ok, Dev} -> send_chunks(Dev, Sock, ChunkSz);
-    Any -> logging:err("Unexpected result while opening the file ~s: ~p", [FName, Any]),
-      {failed, Any}
-  end.
-
+send_file(Socket, Path, Size, Headers) ->
+  socket:setopt(Socket, tcp, cork, true),
+  case Headers of
+    <<>> -> ok;
+    _ -> socket:send(Socket, Headers)
+  end,
+  {ok, Fd} = file:open(Path, [read, raw, binary]),
+  try
+    file:sendfile(Fd, Socket, 0, Size, [{chunk_size, 1048576}])
+  after
+    file:close(Fd)
+  end,
+  socket:setopt(Socket, tcp, cork, false).
 
 wrap_fname_stat(FName) ->
   case file:read_file_info(FName) of
@@ -43,7 +40,7 @@ get_filename(DocDir, XRoute) ->
   Route = binary:bin_to_list(XRoute, {1, string:length(XRoute) - 1}),
   IndexInDocDir = string:strip(filename:join([Route, "index.html"]), left, $/),
   FNameInDocDir = string:strip(Route),
-  logging:debug("~p ~p", [IndexInDocDir, FNameInDocDir]),
+  %%logging:debug("~p ~p", [IndexInDocDir, FNameInDocDir]),
   SafeFName = filelib:safe_relative_path(FNameInDocDir, DocDir),
   SafeIName = filelib:safe_relative_path(IndexInDocDir, DocDir),
   FileName = filename:join([DocDir, SafeFName]),
@@ -66,7 +63,7 @@ stat_file(no_file) -> {0, no_file};
 stat_file(unsafe) -> {0, no_access};
 stat_file(eacces) -> {0, no_access};
 stat_file({FName, FInfo}) ->
-  logging:debug("Stat: ~p, FInfo: ~p", [FName, FInfo]),
+  %%logging:debug("Stat: ~p, FInfo: ~p", [FName, FInfo]),
   Access = FInfo#file_info.access,
   FSize = FInfo#file_info.size,
   if (Access /= read) and (Access /= read_write) -> {0, no_access};
@@ -76,17 +73,25 @@ stat_file({FName, FInfo}) ->
     true -> {FSize, ok}
   end.
 
-handle_file(Response, Upstream, _FName) when Response#response.request#request.method == "HEAD" ->
+handle_file(Response, Upstream, _, _) when Response#response.request#request.method == "HEAD" ->
   handle:log_response(Response#response.request, 200),
-  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
-handle_file(Response, Upstream, FName) ->
-  logging:debug("Response=~p", [Response]),
+  Upstream ! {send, self(),
+    list_to_binary(response:response_headers(Response#response.headers, Response#response.code))},
+  receive
+    sent -> ok;
+    _ -> error
+  end;
+
+handle_file(Response, Upstream, FName, FInfo) ->
+  %%logging:debug("Response=~p", [Response]),
   handle:log_response(Response#response.request, 200),
-  Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)},
+  Headers = response:response_headers(Response#response.headers, Response#response.code),
   Upstream ! cancel_tmr,
-  case send_file(FName, Response#response.socket, ?chunk_size) of
+  case send_file(Response#response.socket, FName, FInfo#file_info.size, Headers) of
     ok -> pass;
-    {failed, _} ->
+    {ok, _} -> pass;
+    {failed, Reason} ->
+      logging:err("File sending failed: ~p", [Reason]),
       logging:warn("Failed to send file, so telling upstream to close connection"),
       Upstream ! close
   end,
@@ -111,7 +116,6 @@ handle_file(DocDir, Response) ->
   Method = Response#response.request#request.method,
   Upstream = Response#response.upstream,
   {IsIndex, FStat} = get_filename_or_indexname(DocDir, Route),
-  logging:debug("~p ~p ~p", [FStat, DocDir, Route]),
   case stat_file(FStat) of
     {0, no_file} ->
       Upstream ! {send, handle:abort(Method, 404)},
@@ -127,14 +131,15 @@ handle_file(DocDir, Response) ->
       Upstream ! close;
     {ContentSize, ok} ->
       StrTime = util:get_time(),
+      {FName, FInfo} = FStat,
       ResponseHeadered = response:set_headers(Response,
         maybe_set_html_content_type(IsIndex, #{
           "Content-Length" => integer_to_list(ContentSize),
           "Date" => StrTime,
+          "Last-Modified" => util:format_file_time(FInfo#file_info.mtime),
           "Server" => ?version})),
-      {FName, _} = FStat,
       case Method of
-        <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName);
+        <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName, FInfo);
         <<"HEAD">> -> Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
         Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2", [Any]),
           Upstream ! {send, handle:abort(500)}

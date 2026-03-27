@@ -13,7 +13,7 @@
 -define(accessfile, "/etc/MeowMeow/routes.conf").
 -define(configfile, "/etc/MeowMeow/meow.conf").
 -define(max_request_length, 10000).
--define(chunk_size, 1400).
+-define(chunk_size, 65536).
 -define(timeout, list_to_integer(configuration:get("KeepAlive"))).
 -define(defconf, #{"DocDir"=>"/var/www/",
                    "LogLevel" => "0", 

@@ -52,7 +52,7 @@ parse_section({ok, Dev}, R, SectionName) ->
 parse_access(FName) ->
   Dev = file:open(FName, read),
   R = parse_section(Dev, [], global),
-  logging:debug("R=~p",[R]),
+  %%logging:debug("R=~p",[R]),
   file:close(Dev),
   R.
 
@@ -102,9 +102,9 @@ get_rules_checked(Request, {Type, Pattern, List}, Rules, T)->
         IsKey = maps:is_key("Host", Request#request.header),
         if IsKey ->
             Host=string:trim(maps:get("Host",Request#request.header)),
-            logging:debug("Host=`~s`,Pattern=`~s`",[Host, Pattern]),
+            %%logging:debug("Host=`~s`,Pattern=`~s`",[Host, Pattern]),
             StatHost = util:check_wildcard(Host, Pattern),
-            logging:debug("StatHost=~p",[StatHost]),
+            %%logging:debug("StatHost=~p",[StatHost]),
             if StatHost -> get_rules(Request, T, Rules ++ get_rules(Request,List,[]));
                true -> get_rules(Request, T, Rules)
             end;

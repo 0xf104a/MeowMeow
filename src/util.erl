@@ -1,10 +1,12 @@
 -module(util).
--export([addr2str/1, get_http_ver_pair/1, str2addr/1, 
-         get_time/0, wildcard2regex/1, check_wildcard/2, 
-         tup2list/1, sget/2, sget2/2, pretty_addr/1,
-         bin2str/1, get_addr/1, prettify_header_key/1,
-         split_list/2, parse_options_line/1, parse_arguments/1, parse_list/1]).
+-export([addr2str/1, get_http_ver_pair/1, str2addr/1,
+  get_time/0, wildcard2regex/1, check_wildcard/2,
+  tup2list/1, sget/2, sget2/2, pretty_addr/1,
+  bin2str/1, get_addr/1, prettify_header_key/1,
+  split_list/2, parse_options_line/1, parse_arguments/1, parse_list/1,
+  format_file_time/1]).
 -include("config.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% This part of code converts wildcards to regex
 %% It is required since erlang can not match wildcards to strings
@@ -65,6 +67,20 @@ get_time() ->
   {{Year, Month, Day}, {Hour, Minute, Second}} = erlang:universaltime(),
   WeekDay = maps:get(calendar:day_of_the_week(Year, Month, Day), Days),
   lists:flatten(io_lib:format("~s, ~2..0w  ~s ~4..0w ~2..0w:~2..0w:~2..0w GMT", [WeekDay, Day, maps:get(Month, Months), Year, Hour, Minute, Second])).
+
+format_file_time(Date) ->
+  % mtime is the modification time in {{Y,M,D}, {H,M,S}} format
+  {{Year, Month, Day}, {Hour, Minute, Second}} = Date,
+
+  Months = #{1 => "Jan", 2 => "Feb", 3 => "Mar", 4 => "Apr", 5 => "May", 6 => "Jun",
+    7 => "Jul", 8 => "Aug", 9 => "Sep", 10 => "Oct", 11 => "Nov", 12 => "Dec"},
+  Days = #{1 => "Mon", 2 => "Tue", 3 => "Wed", 4 => "Thu", 5 => "Fri", 6 => "Sat", 7 => "Sun"},
+
+  WeekDay = maps:get(calendar:day_of_the_week(Year, Month, Day), Days),
+
+  lists:flatten(io_lib:format("~s, ~2..0w ~s ~4..0w ~2..0w:~2..0w:~2..0w GMT",
+    [WeekDay, Day, maps:get(Month, Months), Year, Hour, Minute, Second])).
+
 %% Secure map get
 sget(Key, Map) ->
   IsKey = maps:is_key(Key, Map),
@@ -82,37 +98,37 @@ sget2(Key, Map) ->
       ""
   end.
 str2int(Str) ->
-    case string:to_integer(Str) of
-         {R, []} -> R;
-         {R, <<>>} -> R;
-         _ -> logging:err("Failed to parse to int: ~p", [Str]),
-                {error, bad_arg}
-    end.
+  case string:to_integer(Str) of
+    {R, []} -> R;
+    {R, <<>>} -> R;
+    _ -> logging:err("Failed to parse to int: ~p", [Str]),
+      {error, bad_arg}
+  end.
 
 str2addr(Str) ->
-  IP = string:split(Str,".",all),
+  IP = string:split(Str, ".", all),
   if length(IP) == 4 ->
-     {str2int(lists:nth(1,IP)),
-      str2int(lists:nth(2,IP)),
-      str2int(lists:nth(3,IP)),
-      str2int(lists:nth(4,IP))};
-     true -> logging:err("Failed to parse IP ~s",[Str])
+    {str2int(lists:nth(1, IP)),
+      str2int(lists:nth(2, IP)),
+      str2int(lists:nth(3, IP)),
+      str2int(lists:nth(4, IP))};
+    true -> logging:err("Failed to parse IP ~s", [Str])
   end.
 
 get_http_ver_pair(Str) ->
-   Ver = lists:nth(2,string:split(Str,"/")),
-   [VerMajor, VerMinor] = string:split(Ver, "."),
-   {str2int(VerMajor),str2int(VerMinor)}.
+  Ver = lists:nth(2, string:split(Str, "/")),
+  [VerMajor, VerMinor] = string:split(Ver, "."),
+  {str2int(VerMajor), str2int(VerMinor)}.
 
-addr2str(Addr)->
-   lists:flatten(io_lib:format("~p.~p.~p.~p",Addr)).
+addr2str(Addr) ->
+  lists:flatten(io_lib:format("~p.~p.~p.~p", Addr)).
 
-get_addr(Sock)->
+get_addr(Sock) ->
   Result = socket:peername(Sock),
   case Result of
     {ok, AddrInfo} -> maps:get(addr, AddrInfo);
-    Any -> logging:err("Failed to get peername: ~p @ util:get_addr/1",[Any]),
-           {error, Any}
+    Any -> logging:err("Failed to get peername: ~p @ util:get_addr/1", [Any]),
+      {error, Any}
   end.
 %% Safe conversion of binaries to strings
 bin2str(<<>>) -> "";
@@ -121,38 +137,38 @@ bin2str(Bin) -> binary_to_list(Bin).
 
 prettify_header_token(<<>>) -> "";
 prettify_header_token(S) ->
-  string:to_upper(string:slice(S,0,1))++string:slice(string:to_lower(S),1).
+  string:to_upper(string:slice(S, 0, 1)) ++ string:slice(string:to_lower(S), 1).
 
-prettify_apply(S,[T]) -> S++prettify_header_token(T);
+prettify_apply(S, [T]) -> S ++ prettify_header_token(T);
 prettify_apply(S, A) ->
-  [H|T] = A,
-  prettify_apply(S++prettify_header_token(H)++"-",T).
+  [H | T] = A,
+  prettify_apply(S ++ prettify_header_token(H) ++ "-", T).
 
-prettify_header_key(K)->
+prettify_header_key(K) ->
   Klower = string:lowercase(string:trim(K)),
   Tokens = string:split(Klower, "-"),
-  prettify_apply("",Tokens).
+  prettify_apply("", Tokens).
 
 split_list([], _, SuperList, []) -> SuperList;
-split_list([], _, SuperList, RList) -> SuperList++[RList];
+split_list([], _, SuperList, RList) -> SuperList ++ [RList];
 split_list(List, Token, SuperList, RList) ->
-  [H|T] = List,
-  case H of 
-    Token -> split_list(T, Token, SuperList++[RList], []);
-    Any -> split_list(T, Token, SuperList, RList++[Any])
+  [H | T] = List,
+  case H of
+    Token -> split_list(T, Token, SuperList ++ [RList], []);
+    Any -> split_list(T, Token, SuperList, RList ++ [Any])
   end.
 
 split_list(List, Token) ->
-  split_list(List, Token, [],[]).
+  split_list(List, Token, [], []).
 
 %% clean_list remove from list unneccessary tokens(like [] returned by string:split)
 %% and returns new list without them
 clean_list([], _, NewList) -> NewList;
 clean_list(List, Token, NewList) ->
-  [H|T] = List,
-  case H of 
+  [H | T] = List,
+  case H of
     Token -> clean_list(T, Token, NewList);
-    Any -> clean_list(T, Token, NewList++[Any])
+    Any -> clean_list(T, Token, NewList ++ [Any])
   end.
 
 clean_list(List, Token) -> clean_list(List, Token, []).
@@ -165,10 +181,10 @@ pretty_addr(Addr) ->
 
 parse_quotes(Str) ->
   {ok, Regex} = re:compile("\"[A-Za-z0-9@:%._\s\*\+~#=&?\/\']+\"|'[A-Za-z0-9@:%._\+~#=&?\s\*\/\"]+'"),
-  Match = re:run(Str,Regex),
+  Match = re:run(Str, Regex),
   case Match of
-    {match, [{Begin, End}]} -> 
-      {string:right(Str, length(Str)-End), string:substr(Str, Begin+2, End-Begin-2)};
+    {match, [{Begin, End}]} ->
+      {string:right(Str, length(Str) - End), string:substr(Str, Begin + 2, End - Begin - 2)};
     nomatch ->
       io:fwrite("~p not matched regex @ util:parse_quotes/1~n", [Str]),
       nomatch
@@ -178,17 +194,17 @@ parse_arguments(Str, Parsed) when length(Str) == 0 -> Parsed;
 parse_arguments(Str, Parsed) ->
   Left = string:left(Str, 1),
   case Left of
-    "'" -> 
+    "'" ->
       {Remaining, Token} = parse_quotes(Str),
-      parse_arguments(string:trim(Remaining), Parsed++[Token]);
+      parse_arguments(string:trim(Remaining), Parsed ++ [Token]);
     "\"" ->
       {Remaining, Token} = parse_quotes(Str),
-      parse_arguments(string:trim(Remaining), Parsed++[Token]);
+      parse_arguments(string:trim(Remaining), Parsed ++ [Token]);
     _ ->
       Result = string:split(Str, " "),
       case Result of
-        [Token, Remaining] -> parse_arguments(string:trim(Remaining), Parsed++[string:trim(Token)]);
-        [Token] -> Parsed++[string:trim(Token)]
+        [Token, Remaining] -> parse_arguments(string:trim(Remaining), Parsed ++ [string:trim(Token)]);
+        [Token] -> Parsed ++ [string:trim(Token)]
       end
   end.
 

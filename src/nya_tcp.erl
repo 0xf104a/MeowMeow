@@ -3,19 +3,16 @@
 -import(erlang, [send_after/3]).
 -include("config.hrl").
 
-tcp_send(Sock, Data) when length(Data) < ?chunk_size ->
+tcp_send(Sock, Data) when is_binary(Data) ->
   case socket:send(Sock, Data) of
     ok -> ok;
-    Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2", [Any]),
-      {error, Any}
+    {error, Reason} ->
+      logging:err("Send failed: ~p", [Reason]),
+      {error, Reason}
   end;
-tcp_send(Sock, Data) ->
-  {H, T} = lists:split(?chunk_size, Data),
-  case socket:send(Sock, H) of
-    ok -> tcp_send(Sock, T);
-    Any -> logging:err("Failed to send packet: ~p @ io_proxy:tcp_send/2", [Any]),
-      {error, Any}
-  end.
+tcp_send(Sock, Data) when is_list(Data) ->
+  % Convert to binary once, then send
+  tcp_send(Sock, list_to_binary(Data)).
 
 tcp_recv(_, 0, Data) -> Data;
 tcp_recv(Sock, Size, Data) when Size =< ?chunk_size ->
@@ -29,12 +26,12 @@ tcp_recv(Sock, Size, Data) ->
   Result = socket:recv(Sock, ?chunk_size),
   case Result of
     {ok, Payload} -> tcp_recv(Sock, Size - ?chunk_size, string:concat(Data, Payload));
-    Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
+    Any -> logging:err("Recieve packet failed: ~p @ nya_tcp:tcp_recv/3", [Any]),
       {error, Any}
   end.
 
 tcp_recv(Sock, Size) ->
-  logging:debug("Sz = ~p", [Size]),
+  %%logging:debug("Sz = ~p", [Size]),
   tcp_recv(Sock, Size, "").
 
 cancel_ref(Ref) when Ref == not_set -> not_set;
@@ -48,10 +45,31 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
       Handler ! {data, Data},
       TRef = send_after(?timeout, self(), timeout),
       nya_tcp_ctl(Sock, Handler, TRef);
+    {send, From, Data} when is_binary(Data) ->
+      cancel_ref(TmRef),
+      % Direct send. Let the OS handle the chunking.
+      ok = socket:send(Sock, Data),
+      TRef = send_after(?timeout, self(), timeout),
+      From ! sent,
+      nya_tcp_ctl(Sock, Handler, TRef);
+    {send, From, Data} ->
+      cancel_ref(TmRef),
+      ok = tcp_send(Sock, Data),
+      TRef = send_after(?timeout, self(), timeout),
+      From ! sent,
+      nya_tcp_ctl(Sock, Handler, TRef);
+    {send, Data} when is_binary(Data) ->
+      cancel_ref(TmRef),
+      % Direct send. Let the OS handle the chunking.
+      ok = socket:send(Sock, Data),
+      TRef = send_after(?timeout, self(), timeout),
+      %%From ! sent,
+      nya_tcp_ctl(Sock, Handler, TRef);
     {send, Data} ->
       cancel_ref(TmRef),
       ok = tcp_send(Sock, Data),
       TRef = send_after(?timeout, self(), timeout),
+      %%From ! sent,
       nya_tcp_ctl(Sock, Handler, TRef);
     recv ->
       case socket:recv(Sock, 0, ?timeout) of
@@ -101,5 +119,6 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
 
 nya_tcp_ctl_start(Sock, Handler) ->
   Handler ! {upstream, self()},
+  socket:setopt(Sock, socket, active, once),
   TRef = send_after(?timeout, self(), timeout),
   nya_tcp_ctl(Sock, Handler, TRef).

@@ -9,6 +9,7 @@
 handle_connection(Sock) ->
   case socket:peername(Sock) of
     {ok, _} ->
+      socket:setopt(Sock, tcp, nodelay, true),
       %% Start middleware process
       PidHandler = spawn(fun() -> handle:handler_start(Sock) end),
       %% Start TCP communication flow control process
@@ -39,6 +40,7 @@ listen(Port) ->
       ok = socket:listen(Sock),
       socket:setopt(Sock, socket, reuseaddr, true),
       socket:setopt(Sock, socket, reuseport, true),
+      socket:setopt(Sock, socket, nodelay, true),
       logging:info("Listening on port ~p", [Port]),
       spawn(fun() -> loop(Sock) end),
       R;
