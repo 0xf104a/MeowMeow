@@ -28,14 +28,13 @@ generate_session_id(ByteLength) ->
   Encoded = base64:encode(Bytes),
   clamp_visible(Encoded).
 
-is_mcp
-
 generate_session_id() -> generate_session_id(64).
 
 start_mcp_session(Tool) ->
   SessionId = generate_session_id(),
   Port = open_mcp_port(Tool),
-  ets:insert(mcp_sessions, {SessionId, {Tool, Port}}).
+  ets:insert(mcp_sessions, {SessionId, {Tool, Port}}),
+  SessionId.
 
 kill_mcp_session(SessionId) ->
   case ets:lookup(mcp_sessions, SessionId) of

@@ -144,5 +144,5 @@ handle_file(DocDir, Response) ->
         Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2", [Any]),
           Upstream ! {send, handle:abort(500)}
       end,
-      {finished, Response}
+      {sent, Response}
   end.

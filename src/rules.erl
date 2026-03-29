@@ -43,7 +43,7 @@ rule_abort(Args, _) ->
   {aborted, list_to_integer(lists:nth(1, Args))}.
 
 rule_no_content(_, close) ->
-  logging:err("Received closed response in No-Content. Probably other rule has finished request earlier");
+  logging:err("Received closed response in No-Content. Probably other rule has finished processing request earlier");
 rule_no_content(_, Response) ->
   StrTime = util:get_time(),
   Headers = #{
@@ -57,12 +57,12 @@ rule_disallow(_, _) ->
   {aborted, 403}.
 
 rule_set_header(_, close) ->
-  logging:err("Received closed response in Set-Header. Probably other rule has finished request earlier");
+  logging:err("Received closed response in Set-Header. Probably other rule has finished processing request earlier");
 rule_set_header([Header, Value], Response) ->
   Response#response{headers = update_headers(Response, #{Header => Value})}.
 
 rule_set_code(_, close) ->
-  logging:err("Received closed response in Set-Code. Probably other rule has finished request earlier");
+  logging:err("Received closed response in Set-Code. Probably other rule has finished processing request earlier");
 
 rule_set_code(Arg, Response)->
   {Code, []} = string:to_integer(Arg),

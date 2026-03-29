@@ -80,7 +80,7 @@ abort(<<"HEAD">>, Code) ->
 abort(_, Code) ->
   abort(Code).
 
-do_rules(_, Response) when Response#response.is_finished -> {finished, Response}; %% Response was sent
+do_rules(_, Response) when Response#response.is_sent -> {sent, Response}; %% Response was sent
 do_rules(_, Response) when Response#response.is_done -> {done, Response}; %% Response is ready to be sent by handler
 do_rules([], Response) -> Response;
 do_rules(_, Response) when Response#response.is_ready -> Response;
@@ -132,7 +132,7 @@ handle(Resp, Upstream) ->
       Upstream ! {send, abort(Code)},
       Upstream ! close;
     %% Response was sent off by module, no need to care about data
-    {finished, Response} -> 
+    {sent, Response} ->
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
     %% Module provided string to respond with
@@ -184,7 +184,7 @@ handle_post_unwrapped(Resp, Upstream) ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, abort(Code)},
       Upstream ! close;
-    {finished, Response} ->
+    {sent, Response} ->
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
     {done, Response} ->
@@ -194,7 +194,7 @@ handle_post_unwrapped(Resp, Upstream) ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
     {ok, _} ->
-      %% There is no default proocedure of handling POST requests
+      %% There is no default procedure of handling POST requests
       %% So they should be handled by rules engine. But if they are
       %% not we should return HTTP/1.1 405 Method Not Allowed.
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, 405, get_desc(integer_to_list(405))]),

@@ -54,6 +54,10 @@ ensure_body(T1) ->
     _ -> false
   end.
 
+%% @doc
+%%  Tells whether client has sent off a request to server.
+%%  In HTTP terms means whether "\r\n\r\n" received
+%% @end
 is_request_finished(Lines) when length(Lines) < 2 -> false;
 is_request_finished(Lines) ->
   T0 = lists:nth(length(Lines), Lines),
@@ -189,7 +193,7 @@ sanitize_cors_unsafe([], Acc) -> Acc;
 sanitize_cors_unsafe(Line, Acc) ->
   [Character | Tail] = Line,
   if Character == 9 -> sanitize_cors_unsafe(Tail, Acc ++ [Character]);
-    Character < 25 or Character >= 127 -> sanitize_cors_unsafe(Tail, Acc);
+    (Character < 25) or (Character >= 127) -> sanitize_cors_unsafe(Tail, Acc);
     true -> sanitize_cors_unsafe(Tail, Acc ++ [Character])
   end.
 
