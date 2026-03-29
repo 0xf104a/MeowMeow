@@ -16,7 +16,7 @@
 -import(util, [sget2/2, pretty_addr/1]).
 -import(parse_http, [is_close/1]).
 %% API
--export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0]).
+-export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0, rulechain_exec/2]).
 
 init_rules() ->
   %% Initializes rules table
@@ -31,7 +31,7 @@ register_rule(Rule, RuleHandler) ->
   ets:insert(rules, [{Rule, RuleHandler}]).
 
 execute_rule(Rule, Args, Response) ->
-  logging:debug("Executing rule ~s",[Rule]),
+  logging:debug("Executing rule ~s ~p",[Rule, Args]),
   case ets:lookup(rules, Rule) of
        [{Rule, Handler}] -> Handler(Args, Response);
        Any -> logging:err("Bad rule ~s, lookup responded: ~p",[Rule, Any]),
@@ -51,7 +51,7 @@ rule_no_content(_, Response) ->
     "Date" => StrTime
   },
   %%logging:debug("Old=~p",[Response#response.headers]),
-  Response#response{is_done = true, code = 204, body = "", headers = update_headers(Response, Headers)}.
+  {ready2send, Response#response{is_ready2send = true, code = 204, body = "", headers = update_headers(Response, Headers)}}.
 
 rule_disallow(_, _) ->
   {aborted, 403}.
@@ -59,14 +59,28 @@ rule_disallow(_, _) ->
 rule_set_header(_, close) ->
   logging:err("Received closed response in Set-Header. Probably other rule has finished processing request earlier");
 rule_set_header([Header, Value], Response) ->
-  Response#response{headers = update_headers(Response, #{Header => Value})}.
+  {ok, Response#response{headers = update_headers(Response, #{Header => Value})}}.
 
 rule_set_code(_, close) ->
   logging:err("Received closed response in Set-Code. Probably other rule has finished processing request earlier");
 
 rule_set_code(Arg, Response)->
   {Code, []} = string:to_integer(Arg),
-  Response#response{code = Code}.
+  {ok, Response#response{code = Code}}.
+
+rulechain_exec([], Response) -> {ok, Response};
+rulechain_exec(Rules, Response) ->
+  [{Rule, Args} | T] = Rules,
+  NewResponseState = rules:execute_rule(Rule, Args, Response),
+  case NewResponseState of
+    {aborted, Code} -> {abort, Code};
+    {sent, NewResponse} -> {sent, NewResponse};
+    {ok, NewResponse} -> rulechain_exec(T, NewResponse);
+    {ready2send, NewResponse} -> {ok, NewResponse};
+    Legacy ->
+      logging:err("Got unexpected response! Maybe legacy? ~p", [Legacy]),
+      {aborted, 502}
+  end.
 
 register_basic() ->
   logging:info("Registering basic rules"),

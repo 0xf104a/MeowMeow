@@ -7,8 +7,8 @@
 %%%-------------------------------------------------------------------
 -module(handle).
 -author("f104a").
--export([abort/1, get_request/1, close_connection/2, set_keepalive/1,
-  handler_start/1, get_ua/1, abort/2, log_response/2]).
+-export([abort/1, close_connection/2, set_keepalive/1,
+  handler_start/1, get_ua/1, abort/2, log_response/2, handle_body_recv/1]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).
@@ -17,37 +17,22 @@
 -include("request.hrl").
 -include("response.hrl").
 
-%% Reads request body if it is needed
-%% Should be used by rule handlers
-read_body(Request, Sock) when Request#request.method == <<"POST">> ->
-  ContentLength = parse_http:get_header("Content-Length", Request, int) - length(Request#request.body),
-  Body = Request#request.body,
-  Request#request{body = string:concat(Body, nya_tcp:tcp_recv(Sock, ContentLength))};
-read_body(Request, _) -> Request.
-
-%% Extracts request from response record
-%% an receives body if needed
-get_request(Response) -> 
-  Sock = Response#response.socket,
-  Request = Response#response.request,
-  read_body(Request, Sock).
-
 %% Checks that request is good
 is_good(Request) ->
-   AllowLegacy = configuration:get("AllowLegacyHttp", bool),
-   if not AllowLegacy -> 
-      {Major, Minor} = util:get_http_ver_pair(Request#request.http_ver),
-      if ((Major == 1) and (Minor >= 1)) or (Major > 1) -> good;
-         true -> {bad, old_http}
-      end;
-      true -> good
-   end.
+  AllowLegacy = configuration:get("AllowLegacyHttp", bool),
+  if not AllowLegacy ->
+    {Major, Minor} = util:get_http_ver_pair(Request#request.http_ver),
+    if ((Major == 1) and (Minor >= 1)) or (Major > 1) -> good;
+      true -> {bad, old_http}
+    end;
+    true -> good
+  end.
 
 get_ua(Request) ->
-   IsKey = maps:is_key("User-Agent", Request#request.header),
-   if IsKey -> maps:get("User-Agent", Request#request.header);
-      true -> "<<Unknown UA>>"
-   end.
+  IsKey = maps:is_key("User-Agent", Request#request.header),
+  if IsKey -> maps:get("User-Agent", Request#request.header);
+    true -> "<<Unknown UA>>"
+  end.
 
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
@@ -80,19 +65,6 @@ abort(<<"HEAD">>, Code) ->
 abort(_, Code) ->
   abort(Code).
 
-do_rules(_, Response) when Response#response.is_sent -> {sent, Response}; %% Response was sent
-do_rules(_, Response) when Response#response.is_done -> {done, Response}; %% Response is ready to be sent by handler
-do_rules([], Response) -> Response;
-do_rules(_, Response) when Response#response.is_ready -> Response;
-do_rules(Rules, Response) ->
-  [{Rule, Args} | T] = Rules,
-  NewResponse = rules:execute_rule(Rule, Args, Response),
-%%  logging:debug("New response: ~p", [NewResponse]),
-  case NewResponse of
-    {aborted, Code} -> {abort, Code};
-    Any -> do_rules(T, Any)
-  end.
-
 close_connection(Request, Upstream) ->
   NeedsClose = is_close(Request),
   if NeedsClose ->
@@ -124,7 +96,7 @@ handle(Resp, Upstream) ->
   ResponseWithKeepAlive = set_keepalive(Resp),
 %%  logging:debug("R=~p", [R]),
 %%  logging:debug("Rules=~p", [Rules]),
-  Result = do_rules(Rules, ResponseWithKeepAlive),
+  Result = rules:rulechain_exec(Rules, ResponseWithKeepAlive),
   case Result of
     %% Aborted response: an error happend
     {abort, Code} ->
@@ -136,7 +108,7 @@ handle(Resp, Upstream) ->
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
     %% Module provided string to respond with
-    {done, Response} ->
+    {ok, Response} ->
       Headers = Response#response.headers,
       Code = Response#response.code,
       Body = Response#response.body,
@@ -160,24 +132,24 @@ handle_post(Resp, Upstream) ->
   Request = Resp#response.request,
   HasLength = maps:is_key("Content-Length", Request#request.header),
   if not HasLength ->
-       logging:warn("POST request without Content-Length"),
-       handle_abort(411, Request, Upstream);
-     HasLength ->
-       Length = parse_http:get_header("Content-Length", Request,int),
-       MaxLength = configuration:get("MaxPostSize", int),
-       if Length > MaxLength ->
-            logging:warn("POST request payload is too big(~p>~p)",[Length, MaxLength]),
-            handle_abort(413, Request, Upstream);
-          true -> handle_post_unwrapped(Resp, Upstream)
+    logging:warn("POST request without Content-Length"),
+    handle_abort(411, Request, Upstream);
+    HasLength ->
+      Length = parse_http:get_header("Content-Length", Request, int),
+      MaxLength = configuration:get("MaxPostSize", int),
+      if Length > MaxLength ->
+        logging:warn("POST request payload is too big(~p>~p)", [Length, MaxLength]),
+        handle_abort(413, Request, Upstream);
+        true -> handle_post_unwrapped(Resp, Upstream)
       end
   end.
-  
+
 handle_post_unwrapped(Resp, Upstream) ->
   Request = Resp#response.request,
   Rules = access:get_rules(Request),
   AResponse = set_keepalive(Resp),
   logging:debug("Before do_rules @ handle:handle_post_unwrapped/2"),
-  Result = do_rules(Rules, AResponse),
+  Result = rules:rulechain_exec(Rules, AResponse),
   %%logging:debug("Result = ~p", [Result]),
   case Result of
     {abort, Code} ->
@@ -197,13 +169,14 @@ handle_post_unwrapped(Resp, Upstream) ->
       %% There is no default procedure of handling POST requests
       %% So they should be handled by rules engine. But if they are
       %% not we should return HTTP/1.1 405 Method Not Allowed.
+      logging:warn("Request is denied: module should handle body receiving itself. Call handle_body_recv/2 and return prepared response"),
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, 405, get_desc(integer_to_list(405))]),
       Upstream ! {send, abort(405)},
       Upstream ! close;
     Any ->
       logging:err("Unhandled rules result: ~p @ handle:handle_post_unwrapped/2", [Any])
   end,
-  close_connection(Request, Upstream).  
+  close_connection(Request, Upstream).
 
 handle(Sock, Upstream, ARequest) ->
   case ARequest of
@@ -212,9 +185,9 @@ handle(Sock, Upstream, ARequest) ->
       Upstream ! {send, abort(Code)},
       ok;
     Request ->
-      Result =  is_good(Request),
-      case Result of 
-         good ->
+      Result = is_good(Request),
+      case Result of
+        good ->
           handle_by_method(Request, Upstream, Sock);
         {bad, old_http} ->
           log_response(Request, 505),
@@ -222,30 +195,30 @@ handle(Sock, Upstream, ARequest) ->
           Upstream ! close,
           ok
       end
-    end.
-  
-handle_by_method(Request, Upstream, Sock) ->
-      case Request#request.method of 
-           <<"GET">>->
-      		      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-      		      %%logging:debug("Response=~p", [Response]),
-      		      handle(Response, Upstream);
-           <<"HEAD">>->
-                Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-                %%logging:debug("Response=~p", [Response]),
-                handle(Response, Upstream);
-           <<"POST">>->
-                Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
-		            handle_post(Response, Upstream);
-           _ -> 
-                logging:warn("Requested unknown method ~s, just rejecting request", [Request#request.method]),
-                log_response(Request,405),
-                Upstream ! {send, abort(405)},
-                Upstream ! close,
-                ok
-      end.
+  end.
 
-handler(_, Upstream, {aborted, Code})->
+handle_by_method(Request, Upstream, Sock) ->
+  case Request#request.method of
+    <<"GET">> ->
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      %%logging:debug("Response=~p", [Response]),
+      handle(Response, Upstream);
+    <<"HEAD">> ->
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      %%logging:debug("Response=~p", [Response]),
+      handle(Response, Upstream);
+    <<"POST">> ->
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      handle_post(Response, Upstream);
+    _ ->
+      logging:warn("Requested unknown method ~s, just rejecting request", [Request#request.method]),
+      log_response(Request, 405),
+      Upstream ! {send, abort(405)},
+      Upstream ! close,
+      ok
+  end.
+
+handler(_, Upstream, {aborted, Code}) ->
   Upstream ! {send, abort(Code)},
   Upstream ! close,
   exit(done);
@@ -253,7 +226,7 @@ handler(_, Upstream, {aborted, Code})->
 handler(Sock, Upstream, Request) ->
   receive
     {data, Data} ->
-      ARequest = parse_http:update_request(Request,Data),
+      ARequest = parse_http:update_request(Request, Data),
       Finished = ARequest#request.is_headers_accepted,
       %%logging:debug("Request finished = ~p", [Finished]),
       if Finished ->
@@ -286,4 +259,42 @@ handler_start(Sock) ->
       Upstream ! recv,
       handler(Sock, Upstream,
         parse_http:make_request(util:get_addr(Sock)))
+  end.
+
+handle_body_recv_residual(_, Response, 0) ->
+  %% From 2.0 body must always be binary, but part of it may be received with headers,
+  %% so we need still conver it to binary
+  CurrentBody = Response#response.request#request.body,
+  BinaryBody = list_to_binary(CurrentBody),
+  Request = Response#response.request#request{body = BinaryBody},
+  {ok, Response#response{request = Request}};
+
+handle_body_recv_residual(Socket, Response, ResidualLen) ->
+  CurrentBody = Response#response.request#request.body,
+  case nya_tcp:tcp_recv(Socket, ResidualLen) of
+    {ok, Recvd} -> {ok,
+      Response#response{
+        request = Response#response.request#request{
+          body = list_to_binary(CurrentBody) ++ Recvd
+        }
+      }
+    };
+    Any -> logging:err("Failed receiving data ~p @ handle:handle_body_recv_residual/3", [Any]),
+      {error, Any}
+  end.
+
+%% @doc
+%% Receives request body into memory.
+%% Suitable for small requests which have body fitting into memory well, otherwise
+%% should be handled by module itself to keep body parts, written, cached, processed
+%% online, etc.
+%% @end
+handle_body_recv(Response) ->
+  Headers = Response#response.request#request.header,
+  ContentLen = list_to_integer(maps:get("Content-Length", Headers, "0")),
+  Socket = Response#response.socket,
+  case ContentLen of
+    _ when ContentLen =< 0 -> {error, unknown_length};
+    Len -> handle_body_recv_residual(Socket, Response,
+      Len - length(Response#response.request#request.body))
   end.
