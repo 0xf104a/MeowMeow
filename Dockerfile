@@ -1,11 +1,16 @@
 FROM erlang:alpine AS builder
 
+# Version data
+ARG GIT_SHA=unknown
+ARG GIT_DIRTY=unknown
+
 # Build
 RUN mkdir /buildroot
 WORKDIR /buildroot
 COPY src src
 COPY include include
 COPY rebar.config rebar.config
+RUN echo "-define(GIT_VSN, \"${GIT_SHA}${GIT_DIRTY}\")." > include/git_vsn.hrl
 RUN rebar3 as prod release
 
 
