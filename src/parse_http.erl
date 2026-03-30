@@ -3,7 +3,7 @@
   is_request_finished/1, make_request/1, parse_request/2,
   is_close/1, get_header/2, get_header/3, ensure_body/1,
   update_request/2, parse_accept/1, sanitize_cors_unsafe/1,
-  acceptable/2, acceptable_for_request/2]).
+  acceptable/2, acceptable_for_request/2, has_header/2]).
 -import(util, [sget2/2]).
 -include("config.hrl").
 -include("request.hrl").
@@ -147,7 +147,7 @@ parse_lines(Request, Lines) ->
               [K, V] = string:split(Line, ":"),
               Headers = Request#request.header,
               guard_parse_lines(Request#request{header = maps:merge(Headers,
-                #{binary_to_list(K) => string:trim(binary_to_list(V))})}, T)
+                #{string:to_lower(binary_to_list(K)) => string:trim(binary_to_list(V))})}, T)
           end
       end
   end.
@@ -155,27 +155,30 @@ parse_lines(Request, Lines) ->
 update_request(Request, Lines) ->
   parse_lines(Request, string:concat(Request#request.unfinished_line, Lines)).
 
+get_header(Header, Request, Default) ->
+  Result = maps:get(string:to_lower(Header), Request#request.header, Default),
+  IsString = is_list(Result),
+  if IsString-> string:strip(Result);
+     true -> Result
+  end.
+
+get_header(Header, Request) ->
+  string:strip(maps:get(string:to_lower(Header), Request#request.header)).
+
+-spec has_header(string(), any()) -> true | false.
+has_header(Header, Request) ->
+  maps:is_key(string:to_lower(Header), Request#request.header).
+
 is_close(Request) ->
   %%logging:debug("Header=~p",[Request#request.header]),
-  case string:trim(sget2("Connection", Request#request.header)) of
-    {badkey, "Connection"} -> true;
+  case get_header("Connection", Request, badheader) of
+    badheader -> true;
     "" -> true;
     "close" -> true;
     "keep-alive" -> false;
     Any -> logging:err("Unrecognized connection type: ~p. Either a bug or protocol violation", [Any]),
       true
   end.
-
-get_header(Header, Request) ->
-  Result = util:sget(Header, Request#request.header),
-  case Result of
-    {badkey, Key} ->
-      {no_header, Key};
-    Value -> string:trim(Value)
-  end.
-
-get_header(Header, Request, int) ->
-  list_to_integer(get_header(Header, Request)).
 
 parse_q_token(QToken) ->
   case string:split(QToken, "=") of

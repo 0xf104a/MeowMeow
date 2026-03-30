@@ -4,6 +4,7 @@ FROM erlang:alpine
 RUN mkdir /buildroot
 WORKDIR /buildroot
 COPY src src
+COPY include include
 COPY rebar.config rebar.config
 RUN rebar3 as prod release
 

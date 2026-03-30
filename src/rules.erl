@@ -36,8 +36,8 @@ execute_rule(Rule, Args, Response) ->
        [{Rule, Handler}] ->
          try
            Handler(Args, Response)
-         catch error:Error ->
-           logging:err("Can not execute rule: ~p", [Error]),
+         catch error:Error:Stacktrace ->
+           logging:err("Can not execute rule: ~p~n~p", [Error, Stacktrace]),
            {aborted, 502}
          end;
        Any -> logging:err("Bad rule ~s, lookup responded: ~p",[Rule, Any]),

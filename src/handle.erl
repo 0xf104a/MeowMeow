@@ -147,12 +147,12 @@ handle_post(Resp, Upstream) ->
   %% should be less or equal to MaxPostSize
   logging:debug("Entered handle:handle_post/2"),
   Request = Resp#response.request,
-  HasLength = maps:is_key("Content-Length", Request#request.header),
+  HasLength = parse_http:has_header("Content-Length", Request),
   if not HasLength ->
     logging:warn("POST request without Content-Length"),
     handle_abort(411, Request, Upstream);
     HasLength ->
-      Length = parse_http:get_header("Content-Length", Request, int),
+      Length = list_to_integer(parse_http:get_header("Content-Length", Request, "0")),
       MaxLength = configuration:get("MaxPostSize", int),
       if Length > MaxLength ->
         logging:warn("POST request payload is too big(~p>~p)", [Length, MaxLength]),
@@ -217,6 +217,10 @@ handle(Sock, Upstream, ARequest) ->
 handle_by_method(Request, Upstream, Sock) ->
   case Request#request.method of
     <<"GET">> ->
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream, headers = ?base_headers},
+      %%logging:debug("Response=~p", [Response]),
+      handle(Response, Upstream);
+    <<"DELETE">> ->
       Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream, headers = ?base_headers},
       %%logging:debug("Response=~p", [Response]),
       handle(Response, Upstream);
@@ -288,11 +292,12 @@ handle_body_recv_residual(_, Response, 0) ->
 
 handle_body_recv_residual(Socket, Response, ResidualLen) ->
   CurrentBody = Response#response.request#request.body,
+  BinaryBody = list_to_binary(CurrentBody),
   case nya_tcp:tcp_recv(Socket, ResidualLen) of
     {ok, Recvd} -> {ok,
       Response#response{
         request = Response#response.request#request{
-          body = list_to_binary(CurrentBody) ++ Recvd
+          body = <<BinaryBody/binary, Recvd/binary>>
         }
       }
     };
@@ -307,8 +312,7 @@ handle_body_recv_residual(Socket, Response, ResidualLen) ->
 %% online, etc.
 %% @end
 handle_body_recv(Response) ->
-  Headers = Response#response.request#request.header,
-  ContentLen = list_to_integer(maps:get("Content-Length", Headers, "0")),
+  ContentLen = list_to_integer(parse_http:get_header("Content-Length", Response#response.request, "0")),
   Socket = Response#response.socket,
   case ContentLen of
     _ when ContentLen =< 0 -> {error, unknown_length};

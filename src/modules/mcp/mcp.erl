@@ -20,12 +20,12 @@
 
 mcp_request_state(Request) ->
   Headers = Request#request.header,
-  AcceptHeader = maps:get("Accept", Headers, undefined),
+  AcceptHeader = parse_http:get_header("Accept", Request, undefined),
   %%logging:debug("~p", [Headers]),
-  MCPVersion = maps:get("Mcp-Protocol-Version", Headers, "2025-03-26"),
-  MCPSessionID = maps:get("Mcp-Session-Id", Headers, none),
+  MCPVersion = parse_http:get_header("Mcp-Protocol-Version", Request, "2025-03-26"),
+  MCPSessionID = parse_http:get_header("Mcp-Session-Id", Request, none),
   IsInitializeRequest = is_initialize_request(Request#request.body),
-  ContentType = maps:get("Content-Type", Headers, none),
+  ContentType = parse_http:get_header("Content-Type", Request, none),
   {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}.
 
 handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
@@ -166,9 +166,17 @@ rule_mcp_call(<<"GET">>, _, {_, _, MCPSessionID, _, _}, Response) ->
     true -> handle_mcp_stream(Response, MCPSessionID)
   end;
 
-rule_mcp_call(<<"DELETE">>, Args, {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}, Response) ->
-  logging:err("DELETE not implemented!"),
-  {aborted, 501};
+rule_mcp_call(<<"DELETE">>, _, {_, _, MCPSessionID, _, _}, Response) ->
+  case mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)) of
+    none ->
+      logging:warn("MCP session ID ~p not found", [MCPSessionID]),
+      {aborted, 404};
+    {ok, Pid} ->
+      logging:debug("Terminating ~p", [Pid]),
+      mcp_session:terminate_session(Pid),
+      {ready2send, Response#response{body = <<>>, code = 204}}
+  end;
+
 rule_mcp_call(Method, _, _, _) ->
   logging:debug("Method not allowed ~p", [Method]),
   {aborted, 405}.

@@ -12,7 +12,7 @@
 
 %% API
 -export([start/1, init/1, handle_info/2, handle_call/3,
-  connect_to_mcp_session/1, disconnect_mcp_session/1, notify_mcp_session/2]).
+  connect_to_mcp_session/1, disconnect_mcp_session/1, notify_mcp_session/2, terminate_session/1]).
 
 start(Cmd) ->
   gen_server:start(?MODULE, Cmd, []).  %% NOT start_link — no link to caller
@@ -49,7 +49,15 @@ handle_call({add_receiver, ConnPid}, _, State) ->
   logging:debug("Adding receiver ~p", [ConnPid]),
   {reply, ok, State#state{streams = State#state.streams ++ [ConnPid]}};
 handle_call({remove_receiver, ConnPid}, _, State) ->
-  {reply, ok, State#state{streams = lists:delete(ConnPid, State#state.streams)}}.
+  {reply, ok, State#state{streams = lists:delete(ConnPid, State#state.streams)}};
+handle_call(terminate, _, State) ->
+  logging:debug("broadcasting..."),
+  broadcast_msg(terminate, State),
+  logging:debug("Stopping port..."),
+  catch port_command(State#state.port, <<>>),  %% flush
+  catch port_close(State#state.port),
+  logging:debug("Stopped port..."),
+  {stop, normal, ok, State}.
 
 connect_to_mcp_session(SessionPid) ->
   gen_server:call(SessionPid, {add_receiver, self()}).
@@ -61,3 +69,5 @@ notify_mcp_session(SessionPid, Data) ->
   logging:debug("~p ~p", [SessionPid, Data]),
   gen_server:call(SessionPid, {notify, Data}).
 
+terminate_session(SessionPid) ->
+  gen_server:call(SessionPid, terminate).

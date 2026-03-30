@@ -18,14 +18,14 @@ tcp_recv(_, 0, Data) -> {ok, Data};
 tcp_recv(Sock, Size, Data) when Size =< ?chunk_size ->
   Result = socket:recv(Sock, Size),
   case Result of
-    {ok, Payload} -> Data ++ Payload;
+    {ok, Payload} -> {ok, <<Data/binary, Payload/binary>>};
     Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
       {error, Any}
   end;
 tcp_recv(Sock, Size, Data) ->
   Result = socket:recv(Sock, ?chunk_size),
   case Result of
-    {ok, Payload} -> tcp_recv(Sock, Size - ?chunk_size, Data ++ Payload);
+    {ok, Payload} -> tcp_recv(Sock, Size - ?chunk_size, <<Data/binary, Payload/binary>>);
     Any -> logging:err("Recieve packet failed: ~p @ nya_tcp:tcp_recv/3", [Any]),
       {error, Any}
   end.
