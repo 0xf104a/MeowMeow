@@ -58,7 +58,7 @@ wait_for_sse(SessionPid, Response, RequestID) ->
       IsTargetID = maps:get(<<"id">>, Decoded) == RequestID,
       case IsTargetID of
         true ->
-          mcp_session:disconnect_mcp_session(SessionPid),
+          mcp_server:disconnect_mcp_session(SessionPid),
           {ready2send,
             Response#response{is_ready2send = true,
               body = Data,
@@ -77,14 +77,14 @@ handle_mcp_sse_call(_, none, _) ->
 handle_mcp_sse_call(Response, SessionPid, DecodedRequest) ->
   Response#response.upstream ! cancel_tmr, %% Disable keep-alive timeouts
   logging:debug("Connecting to ~p", [SessionPid]),
-  mcp_session:connect_to_mcp_session(SessionPid),
+  mcp_server:connect_to_mcp_session(SessionPid),
   logging:debug("Notifying ~p with ~p", [SessionPid, Response#response.request#request.body]),
-  mcp_session:notify_mcp_session(SessionPid, Response#response.request#request.body),
+  mcp_server:notify_mcp_session(SessionPid, Response#response.request#request.body),
   wait_for_sse(SessionPid, Response, maps:get(<<"id">>, DecodedRequest)).
 
 handle_mcp_notification(Response, SessionPid) ->
   logging:debug("Notifying ~p", [SessionPid]),
-  mcp_session:notify_mcp_session(SessionPid, Response#response.request#request.body),
+  mcp_server:notify_mcp_session(SessionPid, Response#response.request#request.body),
   logging:debug("Notify ok"),
   {ready2send, Response#response{body = <<"">>, code = 202}}.
 
@@ -119,7 +119,7 @@ handle_mcp_stream(Response, MCPSessionID) ->
       Upstream ! cancel_tmr, %% We handle keep alive
       UpdatedResponse = response:set_header(Response, "Content-Type", "text/event-stream"),
       Upstream ! {send, response:response_headers(UpdatedResponse#response.headers, 200)},
-      mcp_session:connect_to_mcp_session(MCPSessionID),
+      mcp_server:connect_to_mcp_session(MCPSessionID),
       mcp_stream_loop(Upstream, Response)
   end.
 is_initialize_request(Body) when is_binary(Body) ->
@@ -142,7 +142,8 @@ rule_mcp_call(<<"POST">>, [Tool, KeepAliveMs], {_, _, _, IsInitializeRequest, _}
   {ok, ResponseWithFullRequest} = handle:handle_body_recv(Response),
   %%logging:debug("~p", [ResponseWithFullRequest]),
   DecodedRequest = json:decode(ResponseWithFullRequest#response.request#request.body),
-  handle_mcp_session_init(ResponseWithFullRequest, Tool, KeepAliveMs, DecodedRequest);
+  handle_mcp_session_init(ResponseWithFullRequest, Tool,
+    list_to_integer(KeepAliveMs), DecodedRequest);
 
 rule_mcp_call(<<"POST">>, [_, _], {_, _, MCPSessionID, _, _}, Response) ->
   case mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)) of
@@ -173,7 +174,7 @@ rule_mcp_call(<<"DELETE">>, _, {_, _, MCPSessionID, _, _}, Response) ->
       {aborted, 404};
     {ok, Pid} ->
       logging:debug("Terminating ~p", [Pid]),
-      mcp_session:terminate_session(Pid),
+      mcp_server:terminate_session(Pid),
       {ready2send, Response#response{body = <<>>, code = 204}}
   end;
 

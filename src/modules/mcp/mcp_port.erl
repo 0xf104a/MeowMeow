@@ -37,7 +37,7 @@ generate_session_id() -> generate_session_id(64).
 -spec start_mcp_session(string(), integer()) -> string().
 start_mcp_session(Tool, KeepAliveMs) ->
   SessionId = generate_session_id(),
-  Pid = mcp_session:start(Tool),
+  Pid = mcp_server:start([Tool, KeepAliveMs]),
   ets:insert(mcp_sessions, {SessionId, {Tool, Pid}}),
   SessionId.
 

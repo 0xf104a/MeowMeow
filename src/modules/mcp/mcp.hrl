@@ -9,6 +9,8 @@
 -define(mcp_version, "2025-11-25").
 -record(state, {
   port,          %% the stdio subprocess
+  timer,
+  keepalive_ms,
   streams = [],
   event_cursor = 0   %% monotonic int for SSE event IDs
 }).
