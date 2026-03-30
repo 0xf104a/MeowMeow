@@ -21,8 +21,9 @@
 mcp_request_state(Request) ->
   Headers = Request#request.header,
   AcceptHeader = maps:get("Accept", Headers, undefined),
-  MCPVersion = maps:get("MCP-Protocol-Version", Headers, "2025-03-26"),
-  MCPSessionID = maps:get("MCP-Session-Id", Headers, none),
+  %%logging:debug("~p", [Headers]),
+  MCPVersion = maps:get("Mcp-Protocol-Version", Headers, "2025-03-26"),
+  MCPSessionID = maps:get("Mcp-Session-Id", Headers, none),
   IsInitializeRequest = is_initialize_request(Request#request.body),
   ContentType = maps:get("Content-Type", Headers, none),
   {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}.
@@ -32,13 +33,13 @@ handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
   case RequestId of
     none -> {aborted, 422};
     _ ->
-      MCPSessionID = mcp_port:start_mcp_session(Tool),
+      MCPSessionID = mcp_port:start_mcp_session(Tool, KeepAliveMs),
       {ready2send,
         Response#response{
           is_ready2send = true,
           code = 201,
           headers = maps:merge(Response#response.headers,
-            #{"Content-Type" => "application/json", "MCP-Session-ID" => MCPSessionID}
+            #{"Content-Type" => "application/json", "MCP-Session-ID" => binary_to_list(MCPSessionID)}
           ),
           body = iolist_to_binary(json:encode(#{
             <<"json_rpc">> => <<"2.0">>,
@@ -48,8 +49,79 @@ handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
       }
   end.
 
-%% No JSON lib — scan for the method field in the raw binary.
-%% Safe enough: we only need this one check at the gateway level.
+wait_for_sse(SessionPid, Response, RequestID) ->
+  receive
+    terminated -> {aborted, 504};
+    Data ->
+      logging:debug("~p", [Data]),
+      Decoded = json:decode(Data),
+      IsTargetID = maps:get(<<"id">>, Decoded) == RequestID,
+      case IsTargetID of
+        true ->
+          mcp_session:disconnect_mcp_session(SessionPid),
+          {ready2send,
+            Response#response{is_ready2send = true,
+              body = Data,
+              headers = maps:merge(Response#response.headers,
+                #{"Content-Type" => "application/json"})
+            }
+          };
+        _ -> wait_for_sse(SessionPid, Response, RequestID)
+      end
+  end.
+
+handle_mcp_sse_call(_, none, _) ->
+  logging:err("SSE call with none session!"),
+  {aborted, 404};
+
+handle_mcp_sse_call(Response, SessionPid, DecodedRequest) ->
+  Response#response.upstream ! cancel_tmr, %% Disable keep-alive timeouts
+  logging:debug("Connecting to ~p", [SessionPid]),
+  mcp_session:connect_to_mcp_session(SessionPid),
+  logging:debug("Notifying ~p with ~p", [SessionPid, Response#response.request#request.body]),
+  mcp_session:notify_mcp_session(SessionPid, Response#response.request#request.body),
+  wait_for_sse(SessionPid, Response, maps:get(<<"id">>, DecodedRequest)).
+
+handle_mcp_notification(Response, SessionPid) ->
+  logging:debug("Notifying ~p", [SessionPid]),
+  mcp_session:notify_mcp_session(SessionPid, Response#response.request#request.body),
+  logging:debug("Notify ok"),
+  {ready2send, Response#response{body = <<"">>, code = 202}}.
+
+handle_mcp_call(_, none, _) ->
+  logging:err("MCP call with none session!"),
+  {aborted, 404};
+handle_mcp_call(Response, MCPSessionID, DecodedRequest) ->
+  HasIDKey = maps:is_key(<<"id">>, DecodedRequest),
+  {ok, SessionPid} = mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)),
+  case HasIDKey of
+    true -> handle_mcp_sse_call(Response, SessionPid, DecodedRequest);
+    false -> handle_mcp_notification(Response, SessionPid)
+  end.
+
+mcp_stream_loop(Upstream, Response) ->
+  receive
+    terminated ->
+      logging:debug("SSE stream terminated"),
+      Upstream ! set_tmr, %% return keep-alive timer back
+      {sent, Response};
+    {data, Data} ->
+      Upstream ! {send, Data}
+  end.
+
+handle_mcp_stream(Response, MCPSessionID) ->
+  case mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)) of
+    none ->
+      logging:warn("MCP session ID ~p not found", [MCPSessionID]),
+      {aborted, 404};
+    _ ->
+      Upstream = Response#response.upstream,
+      Upstream ! cancel_tmr, %% We handle keep alive
+      UpdatedResponse = response:set_header(Response, "Content-Type", "text/event-stream"),
+      Upstream ! {send, response:response_headers(UpdatedResponse#response.headers, 200)},
+      mcp_session:connect_to_mcp_session(MCPSessionID),
+      mcp_stream_loop(Upstream, Response)
+  end.
 is_initialize_request(Body) when is_binary(Body) ->
   binary:match(Body, <<"\"method\"">>) =/= nomatch andalso
     binary:match(Body, <<"\"initialize\"">>) =/= nomatch;
@@ -58,7 +130,9 @@ is_initialize_request(Body) when is_list(Body) ->
 is_initialize_request(_) ->
   false.
 
-rule_mcp_call(_, _, {_, MCPVersion, _, _, _}, _) when MCPVersion < ?mcp_version -> {aborted, 501};
+rule_mcp_call(_, _, {_, MCPVersion, _, _, _}, _) when MCPVersion < ?mcp_version ->
+  logging:warn("Too old MCP version requested: ~p", [MCPVersion]),
+  {aborted, 501};
 rule_mcp_call(<<"POST">>, _, {_, _, MCPSessionID, IsInitializeRequest, _}, _)
   when MCPSessionID == none, not IsInitializeRequest -> {aborted, 400};
 rule_mcp_call(<<"POST">>, _, {_, _, _, _, ContentType}, _)
@@ -66,12 +140,34 @@ rule_mcp_call(<<"POST">>, _, {_, _, _, _, ContentType}, _)
 rule_mcp_call(<<"POST">>, [Tool, KeepAliveMs], {_, _, _, IsInitializeRequest, _}, Response)
   when IsInitializeRequest ->
   {ok, ResponseWithFullRequest} = handle:handle_body_recv(Response),
-  logging:debug("~p", [ResponseWithFullRequest]),
+  %%logging:debug("~p", [ResponseWithFullRequest]),
   DecodedRequest = json:decode(ResponseWithFullRequest#response.request#request.body),
   handle_mcp_session_init(ResponseWithFullRequest, Tool, KeepAliveMs, DecodedRequest);
-rule_mcp_call(<<"GET">>, Args, {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}, Response) ->
-  {aborted, 501};
+
+rule_mcp_call(<<"POST">>, [_, _], {_, _, MCPSessionID, _, _}, Response) ->
+  case mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)) of
+    none ->
+      logging:warn("MCP session ID ~p not found", [MCPSessionID]),
+      {aborted, 404};
+    _ ->
+      {ok, ResponseAfterRecv} = handle:handle_body_recv(Response),
+      %%logging:debug("~p", [ResponseAfterRecv]),
+      RequestWithBody = ResponseAfterRecv#response.request,
+      DecodedRequest = json:decode(RequestWithBody#request.body),
+      %%logging:debug("DecodedRequest=~p", [DecodedRequest]),
+      handle_mcp_call(Response#response{request = RequestWithBody}, MCPSessionID, DecodedRequest)
+  end;
+
+rule_mcp_call(<<"GET">>, _, {_, _, MCPSessionID, _, _}, Response) ->
+  IsJsonAcceptable = parse_http:acceptable_for_request("application/json", Response#response.request),
+  IsSSEStreamAcceptable = parse_http:acceptable_for_request("text/event-stream", Response#response.request),
+  if MCPSessionID == none -> {aborted, 400};
+    (not IsJsonAcceptable) or (not IsSSEStreamAcceptable) -> {aborted, 406};
+    true -> handle_mcp_stream(Response, MCPSessionID)
+  end;
+
 rule_mcp_call(<<"DELETE">>, Args, {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}, Response) ->
+  logging:err("DELETE not implemented!"),
   {aborted, 501};
 rule_mcp_call(Method, _, _, _) ->
   logging:debug("Method not allowed ~p", [Method]),

@@ -23,3 +23,5 @@
                    "AllowLegacyHttp"=>"No",
                    "MaxPostSize"=>"10240"
                   }). %% Default configuration
+%% Base headers
+-define(base_headers, #{"Server" => ?version}).

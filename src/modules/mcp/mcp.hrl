@@ -2,10 +2,16 @@
 %%% @author f104a
 %%% @copyright (C) 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%  A static configuration for mcp module
+%%%  A static configuration and records for mcp module
 %%% @end
 %%%-------------------------------------------------------------------
 -author("f104a").
 -define(mcp_version, "2025-11-25").
+-record(state, {
+  port,          %% the stdio subprocess
+  streams = [],
+  event_cursor = 0   %% monotonic int for SSE event IDs
+}).
+
 
 

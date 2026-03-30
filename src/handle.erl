@@ -37,6 +37,13 @@ get_ua(Request) ->
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
 
+%% If we passed with response being ready2send we may calculate Content-Length
+maybe_set_content_length(Response) ->
+  RespLen = byte_size(Response#response.body),
+  if RespLen > 0 -> set_header(Response, "Content-Length", integer_to_list(RespLen));
+    true -> Response
+  end.
+
 %%% @doc
 %%%  Function that generates error responses.
 %%%  Should not be used to generate 1xx, 2xx and 3xx responses,
@@ -99,16 +106,25 @@ handle(Resp, Upstream) ->
   Result = rules:rulechain_exec(Rules, ResponseWithKeepAlive),
   case Result of
     %% Aborted response: an error happend
-    {abort, Code} ->
+    {aborted, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, abort(Code)},
       Upstream ! close;
+    %% Response maybe send by our side
+    {ready2send, ResponseWithoutCL} ->
+      Response = maybe_set_content_length(ResponseWithoutCL),
+      Headers = Response#response.headers,
+      Code = Response#response.code,
+      Body = Response#response.body,
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+      Upstream ! {send, response:response(Headers, Code, Body)};
     %% Response was sent off by module, no need to care about data
     {sent, Response} ->
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
     %% Module provided string to respond with
-    {ok, Response} ->
+    {ok, ResponseWithoutCL} ->
+      Response = maybe_set_content_length(ResponseWithoutCL),
       Headers = Response#response.headers,
       Code = Response#response.code,
       Body = Response#response.body,
@@ -152,27 +168,27 @@ handle_post_unwrapped(Resp, Upstream) ->
   Result = rules:rulechain_exec(Rules, AResponse),
   %%logging:debug("Result = ~p", [Result]),
   case Result of
-    {abort, Code} ->
+    {aborted, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, abort(Code)},
       Upstream ! close;
     {sent, Response} ->
       Code = Response#response.code,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]);
-    {done, Response} ->
+    {ready2send, ResponseWithoutCL} ->
+      Response = maybe_set_content_length(ResponseWithoutCL),
       Headers = Response#response.headers,
       Code = Response#response.code,
       Body = Response#response.body,
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
       Upstream ! {send, response:response(Headers, Code, Body)};
-    {ok, _} ->
-      %% There is no default procedure of handling POST requests
-      %% So they should be handled by rules engine. But if they are
-      %% not we should return HTTP/1.1 405 Method Not Allowed.
-      logging:warn("Request is denied: module should handle body receiving itself. Call handle_body_recv/2 and return prepared response"),
-      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, 405, get_desc(integer_to_list(405))]),
-      Upstream ! {send, abort(405)},
-      Upstream ! close;
+    {ok, ResponseWithoutCL} ->
+      Response = maybe_set_content_length(ResponseWithoutCL),
+      Headers = Response#response.headers,
+      Code = Response#response.code,
+      Body = Response#response.body,
+      logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
+      Upstream ! {send, response:response(Headers, Code, Body)};
     Any ->
       logging:err("Unhandled rules result: ~p @ handle:handle_post_unwrapped/2", [Any])
   end,
@@ -200,15 +216,15 @@ handle(Sock, Upstream, ARequest) ->
 handle_by_method(Request, Upstream, Sock) ->
   case Request#request.method of
     <<"GET">> ->
-      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream, headers = ?base_headers},
       %%logging:debug("Response=~p", [Response]),
       handle(Response, Upstream);
     <<"HEAD">> ->
-      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream, headers = ?base_headers},
       %%logging:debug("Response=~p", [Response]),
       handle(Response, Upstream);
     <<"POST">> ->
-      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream},
+      Response = #response{socket = Sock, code = 200, request = Request, upstream = Upstream, headers = ?base_headers},
       handle_post(Response, Upstream);
     _ ->
       logging:warn("Requested unknown method ~s, just rejecting request", [Request#request.method]),

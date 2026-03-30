@@ -14,25 +14,25 @@ tcp_send(Sock, Data) when is_list(Data) ->
   % Convert to binary once, then send
   tcp_send(Sock, list_to_binary(Data)).
 
-tcp_recv(_, 0, Data) -> Data;
+tcp_recv(_, 0, Data) -> {ok, Data};
 tcp_recv(Sock, Size, Data) when Size =< ?chunk_size ->
   Result = socket:recv(Sock, Size),
   case Result of
-    {ok, Payload} -> string:concat(Data, Payload);
+    {ok, Payload} -> Data ++ Payload;
     Any -> logging:err("Recieve packet failed: ~p @ io_proxy:tcp_send/3", [Any]),
       {error, Any}
   end;
 tcp_recv(Sock, Size, Data) ->
   Result = socket:recv(Sock, ?chunk_size),
   case Result of
-    {ok, Payload} -> tcp_recv(Sock, Size - ?chunk_size, string:concat(Data, Payload));
+    {ok, Payload} -> tcp_recv(Sock, Size - ?chunk_size, Data ++ Payload);
     Any -> logging:err("Recieve packet failed: ~p @ nya_tcp:tcp_recv/3", [Any]),
       {error, Any}
   end.
 
 tcp_recv(Sock, Size) ->
   %%logging:debug("Sz = ~p", [Size]),
-  tcp_recv(Sock, Size, "").
+  tcp_recv(Sock, Size, <<>>).
 
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->

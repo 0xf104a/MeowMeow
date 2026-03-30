@@ -3,7 +3,7 @@
   is_request_finished/1, make_request/1, parse_request/2,
   is_close/1, get_header/2, get_header/3, ensure_body/1,
   update_request/2, parse_accept/1, sanitize_cors_unsafe/1,
-  acceptable/2]).
+  acceptable/2, acceptable_for_request/2]).
 -import(util, [sget2/2]).
 -include("config.hrl").
 -include("request.hrl").
@@ -238,5 +238,18 @@ acceptable(Target, ParsedPatterns) ->
     true -> acceptable(Target, Tail)
   end.
 
+%% @doc
+%% Checks if given What mime-type can be accepted by client which sent the request
+%% @end
+%% @param What: mime-time of request
+%% @param Request: clients request
+%% @see acceptable/2
+acceptable_for_request(What, Request) ->
+  HasAcceptHeader = maps:is_key("Accept", Request#request.header),
+  if HasAcceptHeader ->
+    Allowed = parse_accept(maps:get("Accept", Request#request.header)),
+    acceptable(What, Allowed);
+    true -> true
+  end.
 
 

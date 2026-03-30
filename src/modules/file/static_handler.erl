@@ -142,7 +142,7 @@ handle_file(DocDir, Response) ->
         <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName, FInfo);
         <<"HEAD">> -> Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
         Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2", [Any]),
-          Upstream ! {send, handle:abort(500)}
+          {aborted, 405}
       end,
       {sent, Response}
   end.

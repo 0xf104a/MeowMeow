@@ -33,7 +33,13 @@ register_rule(Rule, RuleHandler) ->
 execute_rule(Rule, Args, Response) ->
   logging:debug("Executing rule ~s ~p",[Rule, Args]),
   case ets:lookup(rules, Rule) of
-       [{Rule, Handler}] -> Handler(Args, Response);
+       [{Rule, Handler}] ->
+         try
+           Handler(Args, Response)
+         catch error:Error ->
+           logging:err("Can not execute rule: ~p", [Error]),
+           {aborted, 502}
+         end;
        Any -> logging:err("Bad rule ~s, lookup responded: ~p",[Rule, Any]),
               {aborted, 500}
   end.
@@ -73,12 +79,13 @@ rulechain_exec(Rules, Response) ->
   [{Rule, Args} | T] = Rules,
   NewResponseState = rules:execute_rule(Rule, Args, Response),
   case NewResponseState of
-    {aborted, Code} -> {abort, Code};
+    {aborted, Code} -> {aborted, Code};
     {sent, NewResponse} -> {sent, NewResponse};
     {ok, NewResponse} -> rulechain_exec(T, NewResponse);
     {ready2send, NewResponse} -> {ok, NewResponse};
     Legacy ->
-      logging:err("Got unexpected response! Maybe legacy? ~p", [Legacy]),
+      logging:err("Got unexpected response! Maybe legacy? ~p @ rules:rulechain_exec/2", [Legacy]),
+      logging:debug("Rule=~p", [Rule]),
       {aborted, 502}
   end.
 
