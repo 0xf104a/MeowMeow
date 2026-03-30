@@ -120,15 +120,18 @@ handle_file(DocDir, Response) ->
     {0, no_file} ->
       Upstream ! {send, handle:abort(Method, 404)},
       handle:log_response(Request, 404),
-      Upstream ! close;
+      Upstream ! close,
+      {sent, Response};
     {0, no_access} ->
       Upstream ! {send, handle:abort(Method, 403)},
       handle:log_response(Request, 403),
-      Upstream ! close;
+      Upstream ! close,
+      {sent, Response};
     {0, empty_file} ->
       Upstream ! {send, handle:abort(<<"HEAD">>, 204)},
       handle:log_response(Request, 204),
-      Upstream ! close;
+      Upstream ! close,
+      {sent, Response};
     {ContentSize, ok} ->
       StrTime = util:get_time(),
       {FName, FInfo} = FStat,

@@ -35,7 +35,7 @@ rule_send_file(Arg, RawResponse) ->
       static_handler:send_file(Response#response.socket, Arg, FSize),
       Response#response.upstream ! set_tmr,
       handle:close_connection(Response#response.request, Response#response.upstream),
-      {ok, Response#response{is_sent = true}};
+      {sent, Response#response{is_sent = true}};
     Any ->
       logging:err("Bad stat for ~s: ~p", [Arg, Any]),
       {aborted, 500}

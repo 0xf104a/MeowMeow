@@ -99,9 +99,9 @@ get_rules_checked(Request, {Type, Pattern, List}, Rules, T) ->
         true -> get_rules(Request, T, Rules)
       end;
     host ->
-      IsKey = maps:is_key("Host", Request#request.header),
+      IsKey = parse_http:has_header("Host", Request),
       if IsKey ->
-        Host = string:trim(maps:get("Host", Request#request.header)),
+        Host = parse_http:get_header("Host", Request),
         %%logging:debug("Host=`~s`,Pattern=`~s`",[Host, Pattern]),
         StatHost = util:check_wildcard(Host, Pattern),
         %%logging:debug("StatHost=~p",[StatHost]),
@@ -109,7 +109,8 @@ get_rules_checked(Request, {Type, Pattern, List}, Rules, T) ->
           true -> get_rules(Request, T, Rules)
         end;
         true ->
-          logging:warn("The Host header is required by config, but client did not provide it, so ignoring all Host rules.")
+          logging:warn("The Host header is required by config, but client did not provide it, so ignoring all Host rules."),
+          get_rules(Request, T, Rules)
       end
   end.
 
