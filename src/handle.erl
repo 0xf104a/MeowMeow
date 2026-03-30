@@ -38,11 +38,12 @@ log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
 
 %% If we passed with response being ready2send we may calculate Content-Length
-maybe_set_content_length(Response) ->
+maybe_set_content_length(Response) when Response#response.body /= []->
   RespLen = byte_size(Response#response.body),
   if RespLen > 0 -> set_header(Response, "Content-Length", integer_to_list(RespLen));
     true -> Response
-  end.
+  end;
+maybe_set_content_length(Response) -> Response.
 
 %%% @doc
 %%%  Function that generates error responses.
