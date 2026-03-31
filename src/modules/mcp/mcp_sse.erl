@@ -53,9 +53,9 @@ handle_sse_open(Response, Tool, KeepAliveMs, SessionAt) ->
 
 sse_push_loop(Upstream, Response, SessionPid) ->
   receive
-    terminated ->
+    terminate ->
       logging:debug("SSE stream terminated"),
-      Upstream ! set_tmr,
+      Upstream ! close,
       {sent, Response};
     Data when is_binary(Data) ->
       %% Wrap in SSE event frame and push down the stream
