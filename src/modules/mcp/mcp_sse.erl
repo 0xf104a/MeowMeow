@@ -13,8 +13,6 @@
 
 -export([rule_mcp_sse_call/2]).
 
-%% ── Helpers ──────────────────────────────────────────────────────────────────
-
 is_initialize_request(Body) when is_binary(Body) ->
   binary:match(Body, <<"\"method\"">>) =/= nomatch andalso
     binary:match(Body, <<"\"initialize\"">>) =/= nomatch;
@@ -27,8 +25,6 @@ mcp_request_state(Request) ->
   IsInitializeRequest = is_initialize_request(Request#request.body),
   ContentType = parse_http:get_header("Content-Type", Request, none),
   {MCPSessionID, IsInitializeRequest, ContentType}.
-
-%% ── GET /sse — open SSE stream, emit endpoint event ──────────────────────────
 
 %% Client opened SSE stream without session — create new session + subprocess,
 %% then emit endpoint event so client knows where to POST
@@ -69,7 +65,6 @@ format_sse_event(EventType, Data) ->
     "data: ", Data, "\n\n"
   ]).
 
-%% ── POST /sse?sessionId=<id> — receive message, return 202 ───────────────────
 
 handle_sse_post(Response, MCPSessionID) ->
   {ok, ResponseWithBody} = handle:handle_body_recv(Response),
@@ -93,8 +88,6 @@ handle_sse_post(Response, MCPSessionID) ->
           "Content-Length", "0")
       }
   end.
-
-%% ── Rule chain ───────────────────────────────────────────────────────────────
 
 rule_mcp_sse(<<"GET">>, [Tool, KeepAliveMs, SessionAt], {none, _, _}, Response) ->
   %% No sessionId on GET — fresh connection, create session

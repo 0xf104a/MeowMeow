@@ -12,6 +12,7 @@
   timer,
   keepalive_ms,
   streams = [],
+  buf = <<>>,
   event_cursor = 0   %% monotonic int for SSE event IDs
 }).
 

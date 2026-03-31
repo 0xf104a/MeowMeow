@@ -10,12 +10,11 @@
 -behaviour(gen_server).
 -include("mcp.hrl").
 
-%% API
 -export([start/1, init/1, handle_info/2, handle_call/3, handle_cast/2,
   connect_to_mcp_session/1, disconnect_mcp_session/1, notify_mcp_session/2, terminate_session/1]).
 
 start([Cmd, KeepAliveMs]) ->
-  gen_server:start(?MODULE, [Cmd, KeepAliveMs], []).  %% NOT start_link — no link to caller
+  gen_server:start(?MODULE, [Cmd, KeepAliveMs], []).
 
 init([_, KeepAliveMs]) when not is_integer(KeepAliveMs) ->
   logging:err("KeepAliveMs=~p is not an integer", [KeepAliveMs]),
@@ -29,31 +28,49 @@ init([Cmd, KeepAliveMs]) ->
     exit_status
   ]),
   Timer = erlang:send_after(KeepAliveMs, self(), terminate),
-  {ok, #state{port = Port, timer = Timer, keepalive_ms = KeepAliveMs, streams = []}}.
-
+  {ok, #state{
+    port = Port,
+    timer = Timer,
+    keepalive_ms = KeepAliveMs,
+    streams = [],
+    buf = <<>>          %% add buf to your #state record in mcp.hrl
+  }}.
 
 broadcast_msg(Msg, #state{streams = Streams}) ->
   lists:foreach(fun(Stream) -> Stream ! Msg end, Streams).
 
 reset_timer(#state{timer = Timer, keepalive_ms = KeepAliveMs} = State) ->
-  TR = erlang:cancel_timer(Timer),
+  erlang:cancel_timer(Timer),
   NewTimer = erlang:send_after(KeepAliveMs, self(), terminate),
   State#state{timer = NewTimer}.
 
-handle_info({Port, {data, {eol, Line}}}, #state{port = Port} = State) ->
-  broadcast_msg(Line, State),
-  {noreply, reset_timer(State)};
+%% Complete line — prepend any buffered partial, deliver, clear buffer
+handle_info({Port, {data, {eol, Line}}}, #state{port = Port, buf = Buf} = State) ->
+  FullLine = <<Buf/binary, Line/binary>>,
+  broadcast_msg(FullLine, State),
+  {noreply, reset_timer(State#state{buf = <<>>})};
+
+%% Partial line — accumulate into buffer, don't deliver yet
+handle_info({Port, {data, {noeol, Partial}}}, #state{port = Port, buf = Buf} = State) ->
+  {noreply, State#state{buf = <<Buf/binary, Partial/binary>>}};
+
 handle_info({Port, exit_status, Code}, #state{port = Port} = State) ->
   logging:debug("Subprocess exited with code ~p", [Code]),
+  %% Flush any buffered partial line before terminating
+  case State#state.buf of
+    <<>> -> ok;
+    Remaining -> broadcast_msg(Remaining, State)
+  end,
   broadcast_msg(terminated, State),
   {stop, {subprocess_exited, Code}, State};
+
 handle_info(terminate, State) ->
-  broadcast_msg(terminate, State),
-  catch port_command(State#state.port, <<>>),  %% flush
+  broadcast_msg(terminated, State),
+  catch port_command(State#state.port, <<>>),
   catch port_close(State#state.port),
   {stop, normal, State}.
 
-handle_call({notify, Data}, _,  State) ->
+handle_call({notify, Data}, _, State) ->
   port_command(State#state.port, [Data, <<"\n">>]),
   {reply, ok, reset_timer(State)};
 
@@ -66,13 +83,11 @@ handle_call({remove_receiver, ConnPid}, _, State) ->
 
 handle_call(terminate, _, State) ->
   logging:info("Stopping port ~p...", [self()]),
-  broadcast_msg(terminate, State),
-  catch port_command(State#state.port, <<>>),  %% flush
+  broadcast_msg(terminated, State),
+  catch port_command(State#state.port, <<>>),
   catch port_close(State#state.port),
   {stop, normal, ok, State}.
 
-
-%% This handles asynchronous messages sent via gen_server:cast(Pid, Message)
 handle_cast(_, State) ->
   {noreply, State}.
 
