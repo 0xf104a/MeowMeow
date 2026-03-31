@@ -2,7 +2,7 @@
 %%% @author f104a
 %%% @copyright (C) 2020, Anna-Sofia Kasierocka
 %%% @doc
-%%%   Request record definitions
+%%%   Request record definition
 %%% @end
 %%%-------------------------------------------------------------------
 -author("f104a").

@@ -11,7 +11,7 @@
 -include("mcp.hrl").
 
 %% API
--export([start/1, init/1, handle_info/2, handle_call/3,
+-export([start/1, init/1, handle_info/2, handle_call/3, handle_cast/2,
   connect_to_mcp_session/1, disconnect_mcp_session/1, notify_mcp_session/2, terminate_session/1]).
 
 start([Cmd, KeepAliveMs]) ->
@@ -29,6 +29,7 @@ init([Cmd, KeepAliveMs]) ->
     exit_status
   ]),
   Timer = erlang:send_after(KeepAliveMs, self(), terminate),
+  logging:debug("Set timer ~p(KA=~p)", [Timer, KeepAliveMs]),
   {ok, #state{port = Port, timer = Timer, keepalive_ms = KeepAliveMs, streams = []}}.
 
 
@@ -36,11 +37,13 @@ broadcast_msg(Msg, #state{streams = Streams}) ->
   lists:foreach(fun(Stream) -> Stream ! Msg end, Streams).
 
 reset_timer(#state{timer = Timer, keepalive_ms = Ms} = State) ->
+  logging:debug("Canceling timer ~p", [Timer]),
   erlang:cancel_timer(Timer),
   NewTimer = erlang:send_after(Ms, self(), terminate),
+  logging:debug("Set timer ~p", [NewTimer]),
   State#state{timer = NewTimer}.
 
-handle_info({Port, {data, {eol, Line}}}, #state{port = Port, timer = Timer, keepalive_ms = KeepAliveMs} = State) ->
+handle_info({Port, {data, {eol, Line}}}, #state{port = Port} = State) ->
   broadcast_msg(Line, State),
   {noreply, reset_timer(State)};
 handle_info({Port, exit_status, Code}, #state{port = Port} = State) ->
@@ -63,10 +66,15 @@ handle_call({remove_receiver, ConnPid}, _, State) ->
 
 handle_call(terminate, _, State) ->
   broadcast_msg(terminate, State),
-  logging:debug("Stopping port ~p...", [self()]),
+  logging:info("Stopping port ~p...", [self()]),
   catch port_command(State#state.port, <<>>),  %% flush
   catch port_close(State#state.port),
   {stop, normal, ok, State}.
+
+
+%% This handles asynchronous messages sent via gen_server:cast(Pid, Message)
+handle_cast(_Msg, State) ->
+  {noreply, State}.
 
 connect_to_mcp_session(SessionPid) ->
   gen_server:call(SessionPid, {add_receiver, self()}).

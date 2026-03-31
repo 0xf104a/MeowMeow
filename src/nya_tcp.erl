@@ -36,67 +36,94 @@ tcp_recv(Sock, Size) ->
 
 cancel_ref(Ref) when Ref == not_set -> not_set;
 cancel_ref(Ref) ->
-  erlang:cancel_timer(Ref).
+  case erlang:cancel_timer(Ref) of
+    false ->
+      %% The timer already sent the message!
+      %% We must remove it from the mailbox now.
+      receive
+        timeout -> ok
+      after 0 ->
+        %% Message wasn't in the mailbox yet, or was already handled
+        ok
+      end;
+    _TimeLeft ->
+      %% Timer was successfully stopped before it could fire
+      ok
+  end.
+
+%% Do not reschedules timer unless previous one was set
+maybe_send_after(not_set, _, _, _) -> not_set;
+maybe_send_after(_, Timeout, Process, What) -> send_after(Timeout, Process, What).
+
 nya_tcp_ctl(Sock, Handler, TmRef) ->
   receive
     {recv, Size} ->
       {ok, Data} = socket:recv(Sock, Size),
       cancel_ref(TmRef),
       Handler ! {data, Data},
-      TRef = send_after(?timeout, self(), timeout),
+      TRef = maybe_send_after(TmRef, ?timeout, self(), timeout),
       nya_tcp_ctl(Sock, Handler, TRef);
     {send, From, Data} when is_binary(Data) ->
       cancel_ref(TmRef),
       % Direct send. Let the OS handle the chunking.
       ok = socket:send(Sock, Data),
-      TRef = send_after(?timeout, self(), timeout),
+      TRef = maybe_send_after(TmRef, ?timeout, self(), timeout),
       From ! sent,
       nya_tcp_ctl(Sock, Handler, TRef);
     {send, From, Data} ->
       cancel_ref(TmRef),
       ok = tcp_send(Sock, Data),
-      TRef = send_after(?timeout, self(), timeout),
+      TRef = maybe_send_after(TmRef, ?timeout, self(), timeout),
       From ! sent,
       nya_tcp_ctl(Sock, Handler, TRef);
     {send, Data} when is_binary(Data) ->
       cancel_ref(TmRef),
       % Direct send. Let the OS handle the chunking.
       ok = socket:send(Sock, Data),
-      TRef = send_after(?timeout, self(), timeout),
+      TRef = maybe_send_after(TmRef, ?timeout, self(), timeout),
       %%From ! sent,
       nya_tcp_ctl(Sock, Handler, TRef);
     {send, Data} ->
       cancel_ref(TmRef),
       ok = tcp_send(Sock, Data),
-      TRef = send_after(?timeout, self(), timeout),
+      TRef = maybe_send_after(TmRef, ?timeout, self(), timeout),
       %%From ! sent,
       nya_tcp_ctl(Sock, Handler, TRef);
     recv ->
       case socket:recv(Sock, 0, ?timeout) of
         {ok, Data} ->
-          Handler ! {data, Data};
+          Handler ! {data, Data},
+          cancel_ref(TmRef),
+          TRef = maybe_send_after(TmRef, ?timeout, self(), timeout),
+          nya_tcp_ctl(Sock, Handler, TRef);
         {error, closed} ->
           Handler ! closed,
           logging:warn("Remote has closed conntection @ io_proxy_tcp/3"),
           exit(closed);
+        {error, timeout} when TmRef == not_set ->
+          nya_tcp_ctl(Sock, Handler, TmRef);
         {error, timeout} ->
           Handler ! timeout,
-          logging:debug("Timed-out waiting packets from remote. Exiting. @ io_proxy_tcp/3");
+          socket:close(Sock),
+          logging:debug("Timed-out waiting packets from remote. Exiting. @ nya_tcp_ctl/3");
         {error, Other} ->
           logging:err("Error while receiving: ~p", [Other])
       end;
     cancel_tmr ->
-      cancel_ref(TmRef);
+      logging:debug("Removing Keep-Alive tmr  ~p @ nya_tcp_ctl/3", [TmRef]),
+      cancel_ref(TmRef),
+      nya_tcp_ctl(Sock, Handler, not_set);
     set_tmr ->
+      logging:debug("Setting Keep-Alive tmr @ nya_tcp_ctl/3"),
       cancel_ref(TmRef),
       TRef = send_after(?timeout, self(), timeout),
-      logging:debug("Setted TmRef @ io_proxy_tcp/3"),
+      logging:debug("Setted TmRef @ nya_tcp_ctl/3"),
       nya_tcp_ctl(Sock, Handler, TRef);
     close ->
       case socket:peername(Sock) of
         {ok, Addr} -> ok;
         Any -> Addr = #{addr => {nan, nan, nan, nan}, port => nan},
-          logging:err("Failed to get peername while closing connection: ~p @ io_proxy_tcp/3", [Any])
+          logging:err("Failed to get peername while closing connection: ~p @ nya_tcp_ctl/3", [Any])
       end,
       logging:info("Closing connection with ~p", [util:pretty_addr(Addr)]),
       socket:close(Sock),
@@ -114,8 +141,7 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
       end;
     Any ->
       logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/3", [Any])
-  end,
-  nya_tcp_ctl(Sock, Handler, TmRef).
+  end.
 
 nya_tcp_ctl_start(Sock, Handler) ->
   Handler ! {upstream, self()},

@@ -31,7 +31,7 @@ register_rule(Rule, RuleHandler) ->
   ets:insert(rules, [{Rule, RuleHandler}]).
 
 execute_rule(Rule, Args, Response) ->
-  logging:debug("Executing rule ~s ~p",[Rule, Args]),
+  %%logging:debug("Executing rule ~s ~p",[Rule, Args]),
   case ets:lookup(rules, Rule) of
        [{Rule, Handler}] ->
          try
@@ -78,6 +78,7 @@ rulechain_exec([], Response) -> {ok, Response};
 rulechain_exec(Rules, Response) ->
   [{Rule, Args} | T] = Rules,
   NewResponseState = rules:execute_rule(Rule, Args, Response),
+  %%logging:debug("NewResponseState=~p", [NewResponseState]),
   case NewResponseState of
     {aborted, Code} -> {aborted, Code};
     {sent, NewResponse} -> {sent, NewResponse};

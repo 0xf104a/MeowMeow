@@ -3,7 +3,8 @@
   is_request_finished/1, make_request/1, parse_request/2,
   is_close/1, get_header/2, get_header/3, ensure_body/1,
   update_request/2, parse_accept/1, sanitize_cors_unsafe/1,
-  acceptable/2, acceptable_for_request/2, has_header/2]).
+  acceptable/2, acceptable_for_request/2, has_header/2,
+  parse_query_parameters/1, get_query_parameter/3]).
 -import(util, [sget2/2]).
 -include("config.hrl").
 -include("request.hrl").
@@ -111,10 +112,14 @@ guard_parse_lines(Request, Lines) ->
 unfinished_body(Request, Tail) ->
   string:concat(util:bin2str(Request#request.unfinished_line), util:bin2str(Tail)).
 
+first_or([], Default) -> Default;
+first_or(List, _) ->
+  lists:nth(1, List).
+
 parse_route(Route) ->
   [R | P] = string:split(Route, "?"),
   ARoute = guard_str(R),
-  Params = guard_str(P),
+  Params = guard_str(first_or(P, "")),
   {ARoute, Params}.
 
 parse_lines(Request, []) -> Request;
@@ -203,6 +208,7 @@ sanitize_cors_unsafe(Line, Acc) ->
 %% @doc
 %% Sanitizes string of 0x0-0x19 and 0x7F characters, allowing all others and Tab(0x09)
 %% @end
+%% @param Line: string to sanitize
 sanitize_cors_unsafe(Line) ->
   sanitize_cors_unsafe(Line, "").
 
@@ -254,5 +260,33 @@ acceptable_for_request(What, Request) ->
     acceptable(What, Allowed);
     true -> true
   end.
+
+parse_query_params([], Accumulator) -> {ok, Accumulator};
+parse_query_params(Pairs, Accumulator) ->
+  [Pair | Tail] = Pairs,
+  PairParsed = string:split(Pairs, "="),
+  case PairParsed of
+    [Key, Value] -> parse_query_params(Tail, maps:merge(Accumulator, #{Key => Value}));
+    Any -> logging:err("Invalid query parameters pair: ~p(from ~s)", [Any, Pair]), {error, badpair}
+  end.
+
+%% @doc
+%% Parses query parameters, returns them as map
+%% @end
+%% @param Request: request to parse parameters from
+parse_query_parameters(Request) when length(Request#request.params) == 0 -> {ok, #{}};
+parse_query_parameters(Request) ->
+  parse_query_params(string:split(binary_to_list(Request#request.params), "&"), #{}).
+
+
+%% @doc
+%% Gets value of given query parameter or returns given default value if parameter is undefined.
+%% @end
+%% @param Key: key of parameter
+%% @param Request: a request record to get query parameter
+%% @param Default: default value to return if requested parameter is absent
+get_query_parameter(Key, Request, Default) ->
+  {ok, Result} = parse_query_parameters(Request),
+  maps:get(Key, Result, Default).
 
 

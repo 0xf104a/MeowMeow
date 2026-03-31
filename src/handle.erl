@@ -102,7 +102,7 @@ handle(Resp, Upstream) ->
   Request = Resp#response.request,
   Rules = access:get_rules(Request),
   ResponseWithKeepAlive = set_keepalive(Resp),
-  logging:debug("Rules=~p", [Rules]),
+  %%logging:debug("Rules=~p", [Rules]),
   Result = rules:rulechain_exec(Rules, ResponseWithKeepAlive),
   case Result of
     %% Aborted response: an error happend
