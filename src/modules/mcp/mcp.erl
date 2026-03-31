@@ -34,19 +34,21 @@ handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
     none -> {aborted, 422};
     _ ->
       MCPSessionID = mcp_port:start_mcp_session(Tool, KeepAliveMs),
-      {ready2send,
-        Response#response{
-          is_ready2send = true,
-          code = 201,
-          headers = maps:merge(Response#response.headers,
-            #{"Content-Type" => "application/json", "MCP-Session-ID" => binary_to_list(MCPSessionID)}
-          ),
-          body = iolist_to_binary(json:encode(#{
-            <<"json_rpc">> => <<"2.0">>,
-            <<"result">> => #{<<"protocolVersion">> => <<?mcp_version>>},
-            <<"id">> => RequestId
-          }))}
-      }
+      {ok, SessionPid} = mcp_port:get_mcp_session_by_id(MCPSessionID),
+
+      logging:debug("New SessionPid ~p", [SessionPid]),
+      %% Register ourselves as receiver
+      mcp_server:connect_to_mcp_session(SessionPid),
+
+      %% Forward the original request body to subprocess stdin
+      RawBody = Response#response.request#request.body,
+      mcp_server:notify_mcp_session(SessionPid, RawBody),
+      wait_for_sse(SessionPid, Response#response{
+        code = 201,
+        headers = maps:merge(Response#response.headers,
+          #{"Content-Type" => "application/json", "MCP-Session-Id" => binary_to_list(MCPSessionID)}
+        )},
+        RequestId)
   end.
 
 wait_for_sse(SessionPid, Response, RequestID) ->

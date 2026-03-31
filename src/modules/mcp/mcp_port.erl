@@ -44,7 +44,7 @@ start_mcp_session(Tool, KeepAliveMs) ->
 %% @doc
 %% Finds MCP session PID by session ID.
 %% @end
--spec get_mcp_session_by_id(string()) -> string() | none.
+-spec get_mcp_session_by_id(string()) -> {ok, pid()} | none.
 get_mcp_session_by_id(SessionId) ->
   case ets:lookup(mcp_sessions, SessionId) of
     [{SessionId, {_, Pid}}] ->

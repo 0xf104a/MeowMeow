@@ -1,11 +1,12 @@
 {application, app, [
   {description, "A tiny webserver written in erlang"},
-  {vsn, "2.0-alpha2"},
+  {vsn, "2.0-alpha3"},
   {modules, [handle, response]},
   {registered, [app_sup]},
   {applications, [
     kernel,
-    stdlib
+    stdlib,
+    crypto
   ]},
   {mod, {app, []}},
   {env, []}
