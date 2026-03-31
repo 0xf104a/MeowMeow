@@ -180,7 +180,7 @@ pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).
 
 parse_quotes(Str) ->
-  {ok, Regex} = re:compile("\"[A-Za-z0-9@:%._\s\*\+~#=&?\/\']+\"|'[A-Za-z0-9@:%._\+~#=&?\s\*\/\"]+'"),
+  {ok, Regex} = re:compile("\"[A-Za-z0-9@:%._\s\*\+~#=&?\/\'\-]+\"|'[A-Za-z0-9@:%._\+~#=&?\s\*\/\"\-]+'"),
   Match = re:run(Str, Regex),
   case Match of
     {match, [{Begin, End}]} ->
