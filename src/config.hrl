@@ -10,7 +10,7 @@
 -include("git_vsn.hrl").
 -record(sockaddr_in4, {family = inet, port = 8888, addr = {0, 0, 0, 0}}).
 -define(CHUNK_SIZE, 2048).
--define(version, "MeowMeow/2.0-alpha3" ++ ?GIT_VSN).
+-define(version, "MeowMeow/2.0-alpha5" ++ ?GIT_VSN).
 -define(accessfile, "/etc/MeowMeow/routes.conf").
 -define(configfile, "/etc/MeowMeow/meow.conf").
 -define(max_request_length, 10000).

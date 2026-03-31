@@ -2,7 +2,7 @@
 %%% @author f104a
 %%% @copyright (C) 2026, Anna-Sofia Kasierocka
 %%% @doc
-%%%
+%%%   MCP server controls the MCP stdio subprocess
 %%% @end
 %%%-------------------------------------------------------------------
 -module(mcp_server).
@@ -40,7 +40,8 @@ broadcast_msg(Msg, #state{streams = Streams}) ->
   lists:foreach(fun(Stream) -> Stream ! Msg end, Streams).
 
 reset_timer(#state{timer = Timer, keepalive_ms = KeepAliveMs} = State) ->
-  erlang:cancel_timer(Timer),
+  CnclResult = erlang:cancel_timer(Timer),
+  logging:debug("CnclResult=~p", [CnclResult]),
   NewTimer = erlang:send_after(KeepAliveMs, self(), terminate),
   State#state{timer = NewTimer}.
 
@@ -65,10 +66,14 @@ handle_info({Port, exit_status, Code}, #state{port = Port} = State) ->
   {stop, {subprocess_exited, Code}, State};
 
 handle_info(terminate, State) ->
+  logging:info("Stopping port ~p...", [self()]),
   broadcast_msg(terminated, State),
   catch port_command(State#state.port, <<>>),
   catch port_close(State#state.port),
-  {stop, normal, State}.
+  {stop, normal, State};
+
+handle_info(Any, _) ->
+  logging:warn("Received unknown message ~p @ mcp_server:handle_info/2", [Any]).
 
 handle_call({notify, Data}, _, State) ->
   port_command(State#state.port, [Data, <<"\n">>]),
@@ -86,7 +91,10 @@ handle_call(terminate, _, State) ->
   broadcast_msg(terminated, State),
   catch port_command(State#state.port, <<>>),
   catch port_close(State#state.port),
-  {stop, normal, ok, State}.
+  {stop, normal, ok, State};
+
+handle_call(Any, _, _) ->
+  logging:warn("Received unknown message ~p @ mcp_server:handle_call/3", [Any]).
 
 handle_cast(_, State) ->
   {noreply, State}.

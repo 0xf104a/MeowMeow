@@ -98,7 +98,8 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
           nya_tcp_ctl(Sock, Handler, TRef);
         {error, closed} ->
           Handler ! closed,
-          logging:warn("Remote has closed conntection @ io_proxy_tcp/3"),
+          logging:warn("Remote has closed conntection @ nya_tcp_ctl/3"),
+          socket:close(Sock),
           exit(closed);
         {error, timeout} when TmRef == not_set ->
           nya_tcp_ctl(Sock, Handler, TmRef);
