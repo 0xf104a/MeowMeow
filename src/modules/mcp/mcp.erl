@@ -28,6 +28,12 @@ get_custom_rules() ->
       fun(Args, Response) ->
         mcp_sse:rule_mcp_sse_call(Args, Response)
       end
+    },
+    {
+      "MCP-Tool-SSE-Single",
+      fun(Args, Response) ->
+        mcp_single:rule_mcp_sse_single_call(Args, Response)
+      end
     }
   ].
 

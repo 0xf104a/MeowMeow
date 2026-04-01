@@ -11,7 +11,7 @@
 -include("../../response.hrl").
 -include("../../request.hrl").
 
--export([rule_mcp_sse_call/2]).
+-export([rule_mcp_sse_call/2, sse_push_loop/3, mcp_request_state/1, is_initialize_request/1, format_sse_event/2]).
 
 is_initialize_request(Body) when is_binary(Body) ->
   binary:match(Body, <<"\"method\"">>) =/= nomatch andalso
@@ -89,9 +89,9 @@ handle_sse_post(Response, MCPSessionID) ->
       }
   end.
 
-rule_mcp_sse(<<"GET">>, [Tool, KeepAliveMs, SessionAt], {none, _, _}, Response) ->
+rule_mcp_sse(<<"GET">>, [Tool, KeepAliveMs], {none, _, _}, Response) ->
   %% No sessionId on GET — fresh connection, create session
-  handle_sse_open(Response, Tool, KeepAliveMs, SessionAt);
+  handle_sse_open(Response, Tool, KeepAliveMs, Response#response.request#request.route);
 
 rule_mcp_sse(<<"GET">>, _, {MCPSessionID, _, _}, Response)
   when MCPSessionID =/= none ->

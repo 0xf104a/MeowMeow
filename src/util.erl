@@ -4,7 +4,7 @@
   tup2list/1, sget/2, sget2/2, pretty_addr/1,
   bin2str/1, get_addr/1, prettify_header_key/1,
   split_list/2, parse_options_line/1, parse_arguments/1, parse_list/1,
-  format_file_time/1, sigterm_to_port/1]).
+  format_file_time/1, sigterm_to_port/1, sigkill_to_port/1]).
 -include("config.hrl").
 -include_lib("kernel/include/file.hrl").
 
@@ -222,7 +222,27 @@ sigterm_to_port(Port) ->
   case erlang:port_info(Port, os_pid) of
     {os_pid, Pid} ->
       logging:info("Sending SIGTERM to ~p", [Pid]),
-      os:cmd("kill -15 " ++ integer_to_list(Pid)); % 15 is SIGTERM
+      case os:cmd("kill -15 " ++ integer_to_list(Pid)) of
+        [] -> ok;
+        Message -> logging:err("Kill command failed? Received stdio message: ~p", [Message])
+      end;
+    undefined ->
+      logging:debug("Port ~p closed", [Port]),
+      port_already_closed
+  end.
+
+%% @doc
+%% Sends SIGKILL to process running on port.
+%% @end
+%% @param Port: port to send SIGTERM to
+sigkill_to_port(Port) ->
+  case erlang:port_info(Port, os_pid) of
+    {os_pid, Pid} ->
+      logging:info("Sending SIGTERM to ~p", [Pid]),
+      case os:cmd("kill -9 " ++ integer_to_list(Pid)) of
+        [] -> ok;
+        Message -> logging:err("Kill command failed? Received stdio message: ~p", [Message])
+      end;
     undefined ->
       logging:debug("Port ~p closed", [Port]),
       port_already_closed

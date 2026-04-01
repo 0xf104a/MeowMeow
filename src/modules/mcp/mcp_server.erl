@@ -90,8 +90,13 @@ handle_call({remove_receiver, ConnPid}, _, State) ->
 handle_call(terminate, _, State) ->
   logging:info("Stopping port ~p...", [self()]),
   broadcast_msg(terminated, State),
+  %% Ask to stop very politely(no tool yet recognized that)
   catch port_command(State#state.port, <<>>),
+  %% Ask to stop politely but insistently(only few tools do that correctly)
   util:sigterm_to_port(State#state.port),
+  %% Ask boss to stop this process if it won't wrap up in 300ms
+  timer:sleep(300),
+  util:sigkill_to_port(State#state.port),
   catch port_close(State#state.port),
   {stop, normal, ok, State};
 
