@@ -50,7 +50,7 @@ handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
 
 wait_for_sse(SessionPid, Response, RequestID) ->
   receive
-    terminate -> {aborted, 504};
+    terminated -> {aborted, 504};
     Data ->
       logging:debug("~p", [Data]),
       Decoded = json:decode(Data),
@@ -100,7 +100,7 @@ handle_mcp_call(Response, MCPSessionID, DecodedRequest) ->
 
 mcp_stream_loop(Upstream, Response) ->
   receive
-    terminate ->
+    terminated ->
       logging:debug("SSE stream terminated"),
       Upstream ! close, %% return keep-alive timer back
       {sent, Response};

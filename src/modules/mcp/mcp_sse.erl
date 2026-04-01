@@ -49,7 +49,7 @@ handle_sse_open(Response, Tool, KeepAliveMs, SessionAt) ->
 
 sse_push_loop(Upstream, Response, SessionPid) ->
   receive
-    terminate ->
+    terminated ->
       logging:debug("SSE stream terminated"),
       Upstream ! close,
       {sent, Response};

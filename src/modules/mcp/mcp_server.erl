@@ -90,6 +90,7 @@ handle_call(terminate, _, State) ->
   logging:info("Stopping port ~p...", [self()]),
   broadcast_msg(terminated, State),
   catch port_command(State#state.port, <<>>),
+  util:sigterm_to_port(State#state.port),
   catch port_close(State#state.port),
   {stop, normal, ok, State};
 
