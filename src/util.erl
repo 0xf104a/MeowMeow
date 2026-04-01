@@ -224,5 +224,6 @@ sigterm_to_port(Port) ->
       logging:info("Sending SIGTERM to ~p", [Pid]),
       os:cmd("kill -15 " ++ integer_to_list(Pid)); % 15 is SIGTERM
     undefined ->
+      logging:debug("Port ~p closed", [Port]),
       port_already_closed
   end.
