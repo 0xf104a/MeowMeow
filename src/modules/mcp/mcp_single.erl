@@ -25,20 +25,28 @@ init_table() ->
 get_route(Request) ->
   Request#request.route.
 
+new_session(Route, Tool, KeepAliveMs) ->
+  MCPSessionID = mcp_port:start_mcp_session(
+    Tool,
+    list_to_integer(KeepAliveMs)
+  ),
+  {ok, Pid} = mcp_port:get_mcp_session_by_id(MCPSessionID),
+
+  Session = #{ pid => Pid, initialized => false, init_response => <<>> },
+  ets:insert(?ROUTE_TABLE, {Route, Session}),
+  Session.
+
 get_or_create_session(Route, Tool, KeepAliveMs) ->
   case ets:lookup(?ROUTE_TABLE, Route) of
     [{Route, Session}] ->
-      Session;
-    [] ->
-      MCPSessionID = mcp_port:start_mcp_session(
-        Tool,
-        list_to_integer(KeepAliveMs)
-      ),
-      {ok, Pid} = mcp_port:get_mcp_session_by_id(MCPSessionID),
-
-      Session = #{ pid => Pid, initialized => false },
-      ets:insert(?ROUTE_TABLE, {Route, Session}),
-      Session
+      Pid = maps:get(pid, Session),
+      IsAlive = erlang:is_process_alive(Pid),
+      logging:debug("IsAlive(Pid ~p)=~p", [Pid, IsAlive]),
+      case IsAlive of
+        true -> Session;
+        _ -> new_session(Route, Tool, KeepAliveMs)
+      end;
+    [] -> new_session(Route, Tool, KeepAliveMs)
   end.
 
 update_session(Route, Session) ->
@@ -54,6 +62,7 @@ handle_sse_open_single(Response, Tool, KeepAliveMs) ->
   Route = get_route(Request),
 
   Session = get_or_create_session(Route, Tool, KeepAliveMs),
+  logging:debug("Got session: ~p", [Session]),
   SessionPid = maps:get(pid, Session),
 
   Upstream = Response#response.upstream,
@@ -65,10 +74,16 @@ handle_sse_open_single(Response, Tool, KeepAliveMs) ->
   Upstream ! {send,
     response:response_headers(UpdatedResponse#response.headers, 200)},
 
+  logging:debug("Ready to connect to MCP"),
   mcp_server:connect_to_mcp_session(SessionPid),
+  logging:debug("Connected to MCP"),
   Upstream ! {send, mcp_sse:format_sse_event("endpoint", Request#request.route)},
 
-  mcp_sse:sse_push_loop(Upstream, Response, SessionPid).
+  mcp_sse:sse_push_loop(Upstream, Response, SessionPid),
+  logging:debug("Exited loop, removing session..."),
+  delete_session(Request#request.route),
+  {sent, Response}.
+
 
 handle_post_single(Response, Tool, KeepAliveMs) ->
   init_table(),
@@ -85,13 +100,14 @@ handle_post_single(Response, Tool, KeepAliveMs) ->
 
   case mcp_sse:is_initialize_request(Body) of
     true when Initialized =:= true ->
-      %% swallow duplicate initialize like a black hole
+      Body = maps:get(init_response, Session),
+      mcp_server:notify_mcp_session(SessionPid, Body),
       ok;
 
     true ->
       %% first initialize passes through
       mcp_server:notify_mcp_session(SessionPid, Body),
-      update_session(Route, Session#{ initialized => true });
+      update_session(Route, Session#{ initialized => true, init_response => Body });
 
     false ->
       mcp_server:notify_mcp_session(SessionPid, Body)
