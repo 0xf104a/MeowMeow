@@ -21,6 +21,7 @@ init([_, KeepAliveMs]) when not is_integer(KeepAliveMs) ->
   {error, badarg};
 
 init([Cmd, KeepAliveMs]) ->
+  logging:info("Starting MCP tool: ~s", [Cmd]),
   Port = open_port({spawn, Cmd}, [
     binary,
     {line, 65536},
@@ -70,6 +71,8 @@ handle_info(terminate, State) ->
   broadcast_msg(terminated, State),
   catch port_command(State#state.port, <<>>),
   util:sigterm_to_port(State#state.port),
+  timer:sleep(300),
+  util:sigkill_to_port(State#state.port),
   catch port_close(State#state.port),
   {stop, normal, State};
 

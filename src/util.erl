@@ -238,7 +238,7 @@ sigterm_to_port(Port) ->
 sigkill_to_port(Port) ->
   case erlang:port_info(Port, os_pid) of
     {os_pid, Pid} ->
-      logging:info("Sending SIGTERM to ~p", [Pid]),
+      logging:info("Sending SIGKILL to ~p", [Pid]),
       case os:cmd("kill -9 " ++ integer_to_list(Pid)) of
         [] -> ok;
         Message -> logging:err("Kill command failed? Received stdio message: ~p", [Message])

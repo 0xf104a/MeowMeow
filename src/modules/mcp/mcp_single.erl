@@ -100,8 +100,8 @@ handle_post_single(Response, Tool, KeepAliveMs) ->
 
   case mcp_sse:is_initialize_request(Body) of
     true when Initialized =:= true ->
-      Body = maps:get(init_response, Session),
-      mcp_server:notify_mcp_session(SessionPid, Body),
+      InitResp = maps:get(init_response, Session),
+      mcp_server:notify_mcp_session(SessionPid, InitResp),
       ok;
 
     true ->
