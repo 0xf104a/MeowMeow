@@ -44,9 +44,13 @@ get_or_create_session(Route, Tool, KeepAliveMs) ->
       logging:debug("IsAlive(Pid ~p)=~p", [Pid, IsAlive]),
       case IsAlive of
         true -> Session;
-        _ -> new_session(Route, Tool, KeepAliveMs)
+        _ ->
+          logging:debug("Will create new session for tool ~p", [Tool]),
+          new_session(Route, Tool, KeepAliveMs)
       end;
-    [] -> new_session(Route, Tool, KeepAliveMs)
+    [] ->
+      logging:debug("No session for route ~p,  will start ~p", [Route, Tool]),
+      new_session(Route, Tool, KeepAliveMs)
   end.
 
 update_session(Route, Session) ->
@@ -80,8 +84,6 @@ handle_sse_open_single(Response, Tool, KeepAliveMs) ->
   Upstream ! {send, mcp_sse:format_sse_event("endpoint", Request#request.route)},
 
   mcp_sse:sse_push_loop(Upstream, Response, SessionPid),
-  logging:debug("Exited loop, removing session..."),
-  delete_session(Request#request.route),
   {sent, Response}.
 
 
