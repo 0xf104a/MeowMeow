@@ -1,6 +1,6 @@
 -module(response).
 -export([response/3, get_desc/1, response_headers/2, do_response_headers/1, response_error/1, set_header/3,
-  set_headers/2, update_headers/2]).
+  set_headers/2, update_headers/2, set_code/2, override_code/2]).
 -include("config.hrl").
 -include("response.hrl").
 
@@ -107,6 +107,27 @@ set_headers(Response, Headers) ->
 
 update_headers(Response, Headers) ->
   maps:merge(Response#response.headers, Headers).
+
+%% @doc
+%% Sets response code.
+%% @end
+%% @param Response: response to alter
+%% @param NewCode: new code to set for response
+set_code(Response, _) when Response#response.status_code_override -> Response;
+set_code(Response, NewCode) ->
+  Response#response{code = NewCode}.
+
+%% @doc
+%% Sets code override value.
+%% Code overrides would not be changed if other module
+%% sets code with response_set_code. But second call
+%% for this method would override old code override
+%% @end
+%% @param Response which's code should be overriden
+%% @param New code;s integer value to override
+%% @see response_set_code/2
+override_code(Response, NewCode) ->
+  Response#response{code = NewCode, status_code_override = true}.
 
 
    

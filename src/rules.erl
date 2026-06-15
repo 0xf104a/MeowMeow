@@ -72,7 +72,7 @@ rule_set_code(_, close) ->
 
 rule_set_code(Arg, Response)->
   {Code, []} = string:to_integer(Arg),
-  {ok, Response#response{code = Code}}.
+  {ok, response:override_code(Response, Code)}.
 
 rulechain_exec([], Response) -> {ok, Response};
 rulechain_exec(Rules, Response) ->

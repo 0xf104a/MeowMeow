@@ -18,4 +18,5 @@
 %% is_finished - whether request was sent by another module
 %% headers - map of response headers to their values 
 -record(response, {request, code, socket=bad, body = "", upstream = bad, 
-                   is_sent = false, is_ready2send = false, headers = #{}}).
+                   is_sent = false, is_ready2send = false, headers = #{},
+                   status_code_override = false}).

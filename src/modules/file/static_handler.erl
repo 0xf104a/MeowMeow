@@ -110,7 +110,8 @@ maybe_set_html_content_type(true, Headers) ->
   maps:put("Content-Type", "text/html", Headers);
 maybe_set_html_content_type(false, Headers) -> Headers.
 
-handle_file(DocDir, Response) ->
+handle_file(DocDir, DefaultResponse) ->
+  Response = response:set_code(DefaultResponse, 200),
   Route = Response#response.request#request.route,
   Request = Response#response.request,
   Method = Response#response.request#request.method,
