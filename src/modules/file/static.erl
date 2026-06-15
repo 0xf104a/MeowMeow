@@ -20,7 +20,8 @@
 
 -export([init/0, terminate/1, get_custom_rules/0]).
 
-rule_send_file(Arg, RawResponse) ->
+rule_send_file(Arg, DefaultRawResponse) ->
+  RawResponse = response:set_code(DefaultRawResponse, 200),
   FInfo = file:read_file_info(Arg),
   %%logging:debug("FInfo: ~p", [FInfo]),
   case static_handler:stat_file(FInfo) of

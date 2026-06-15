@@ -11,8 +11,9 @@
 -record(sockaddr_in4, {family = inet, port = 8888, addr = {0, 0, 0, 0}}).
 -define(CHUNK_SIZE, 2048).
 -define(version, "MeowMeow/2.0-alpha10" ++ ?GIT_VSN).
--define(accessfile, "/etc/MeowMeow/routes.conf").
--define(configfile, "/etc/MeowMeow/meow.conf").
+%% nya is pwetty, right? ^^~
+-define(accessfile, "/etc/nya/routes.conf").
+-define(configfile, "/etc/nya/meow.conf").
 -define(max_request_length, 10000).
 -define(chunk_size, 65536).
 -define(timeout, list_to_integer(configuration:get("KeepAlive"))).
