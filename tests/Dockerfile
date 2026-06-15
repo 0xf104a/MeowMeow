@@ -25,8 +25,8 @@ RUN rebar3 as prod release
 
 # Installation
 WORKDIR /
-RUN mkdir /etc/MeowMeow/
-COPY tests/config/*.conf /etc/MeowMeow/
+RUN mkdir /etc/nya/
+COPY tests/config/*.conf /etc/nya/
 RUN cp -r /buildroot/_build/prod/rel/MeowMeow /MeowMeow
 COPY tests/test.sh /usr/bin/TestMeowMeow
 RUN chmod +x /usr/bin/TestMeowMeow
