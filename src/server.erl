@@ -56,7 +56,8 @@ do_listen(Sock,Port) ->
     socket:setopt(Sock, socket, reuseport, true),
     logging:info("Listening on port ~p", [Port]),
     loop(Sock),
-    R.  
+    R.
+
 listen_synchronized(Port) ->
   %% Does not create new process
   Addr = #{addr => util:str2addr(configuration:get("ListenHost",string)), family => inet, port => Port},

@@ -100,10 +100,12 @@ handle_abort(Code, Request, Upstream) ->
 
 handle(Resp, Upstream) ->
   Request = Resp#response.request,
+  Method = Request#request.method,
   Rules = access:get_rules(Request),
   ResponseWithKeepAlive = set_keepalive(Resp),
   %%logging:debug("Rules=~p", [Rules]),
-  Result = rules:rulechain_exec(Rules, ResponseWithKeepAlive),
+  Result = rules:rulechain_exec(Rules, ResponseWithKeepAlive#response{code=404,
+                                  body = list_to_binary(abort(Method,404))}),
   case Result of
     %% Aborted response: an error happend
     {aborted, Code} ->
@@ -165,7 +167,7 @@ handle_post_unwrapped(Resp, Upstream) ->
   Rules = access:get_rules(Request),
   AResponse = set_keepalive(Resp),
   logging:debug("Before do_rules @ handle:handle_post_unwrapped/2"),
-  Result = rules:rulechain_exec(Rules, AResponse),
+  Result = rules:rulechain_exec(Rules, AResponse#response{code = 404, body = abort(404)}),
   %%logging:debug("Result = ~p", [Result]),
   case Result of
     {aborted, Code} ->
