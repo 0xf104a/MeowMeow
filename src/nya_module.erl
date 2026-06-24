@@ -12,7 +12,8 @@
 %%%                     Return {ok, State} or {error, Reason}.
 %%%     get_custom_rules/0 - returns custom rules which may be used to invoke
 %%%                          this module on some routes defined in configuration.
-%%%
+%%%     get_context_rules/0 - returns context rules which control whether rules
+%%%                           inside block would be executed.
 %%%     terminate/1   – called on clean shutdown.
 %%% @end
 %%%-------------------------------------------------------------------
@@ -34,6 +35,13 @@
      string(),
      fun(([string()], response()) ->
        HandledResp :: {aborted, integer()} | {ok, 204} | RespData :: response())
+   }].
+
+-callback get_context_rules() ->
+   Rules :: [{
+     string(),
+     fun(([string()], response()) ->
+       ShallPass :: true | false)
    }].
 
 -callback terminate(State :: state()) -> ok.

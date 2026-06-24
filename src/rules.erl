@@ -16,12 +16,13 @@
 -import(util, [sget2/2, pretty_addr/1]).
 -import(parse_http, [is_close/1]).
 %% API
--export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0, rulechain_exec/2]).
+-export([init_rules/0, register_rule/2, execute_rule/3, register_basic/0, rulechain_exec/2, register_context_rule/2]).
 
 init_rules() ->
   %% Initializes rules table
   %% Returns nothing
   ets:new(rules, [set, named_table]),
+  ets:new(rules_context, [set, named_table]),
   ok.
 
 register_rule(Rule, RuleHandler) ->
@@ -29,6 +30,12 @@ register_rule(Rule, RuleHandler) ->
   %% RuleHandler/2 -- function of Args, Response
   %% - returns processed response map
   ets:insert(rules, [{Rule, RuleHandler}]).
+
+register_context_rule(Rule, RuleHandler) ->
+  %% Register rule context handler
+  %% RuleHandler/2 -- function of Args, Response
+  %% - returns processed response map
+  ets:insert(rules_context, [{Rule, RuleHandler}]).
 
 execute_rule(Rule, Args, Response) ->
   %%logging:debug("Executing rule ~s ~p",[Rule, Args]),

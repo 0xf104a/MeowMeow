@@ -17,9 +17,23 @@ include_file(FName) ->
   logging:debug("Including ~p", [FName]),
   Result = file:open(FName, read),
   case Result of
-    {ok, _} -> {ok, parse_section(Result, [], global)};
+    {ok, _} -> {ok, parse_section(Result, [])};
     Error -> logging:err("Failed to open ~p: ~p @ access:include_file/1", [FName, Error]),
       {error, open}
+  end.
+
+is_context_rule(RuleName) ->
+  ets:member(rules_context, RuleName).
+
+is_custom_rule(RuleName) ->
+  ets:member(rules, RuleName).
+
+parse_custom_rule(Dev, Key, Args) ->
+  IsContextRule = is_context_rule(Key),
+  IsCustomRule = is_custom_rule(Key),
+  if IsContextRule -> {ok, [{context, Key, Args, parse_section({ok, Dev}, [])}]};
+     IsCustomRule -> {ok, [{Key, Args}]};
+     true -> {error, Key}
   end.
 
 parse_line(Dev, {ok, Line}) ->
@@ -27,22 +41,20 @@ parse_line(Dev, {ok, Line}) ->
   case Cmd of
     pass -> {ok, []};
     {"Section", true} -> {ok, []};
-    {"Route", [Name]} -> {ok, [{route, Name, parse_section({ok, Dev}, [], Name)}]};
-    {"Host", [Name]} -> {ok, [{host, Name, parse_section({ok, Dev}, [], Name)}]};
     {"End", _} -> finish;
     {"Include", [FName]} -> include_file(FName);
     {error, Reason} -> server:abort_init(Reason),
       {error, Reason};
-    {Key, Value} -> {ok, [{Key, Value}]};
+    {Key, Args} -> parse_custom_rule(Dev, Key, Args);
     Any -> logging:err("get_cmd/1 returned unexpected result ~p @ access:parse_line/2", [Any])
   end;
 
 parse_line(_, eof) -> finish.
 
-parse_section({ok, Dev}, R, SectionName) ->
+parse_section({ok, Dev}, R) ->
   Line = file:read_line(Dev),
   case parse_line(Dev, Line) of
-    {ok, Data} -> parse_section({ok, Dev}, R ++ Data, SectionName);
+    {ok, Data} -> parse_section({ok, Dev}, R ++ Data);
     {error, Err} -> server:abort_init(Err),
       {error, Err};
     finish -> R;
@@ -51,7 +63,7 @@ parse_section({ok, Dev}, R, SectionName) ->
 
 parse_access(FName) ->
   Dev = file:open(FName, read),
-  R = parse_section(Dev, [], global),
+  R = parse_section(Dev, []),
   %%logging:debug("R=~p",[R]),
   file:close(Dev),
   R.
@@ -82,36 +94,17 @@ get_rules(_, [], Rules) -> Rules;
 get_rules(Request, Array, Rules) ->
   [H | T] = Array,
   case H of
-    {Type, Pattern, List} ->
-      get_rules_checked(Request, {Type, Pattern, List}, Rules, T);
+    {context, _, _, _} ->
+      get_context_rules(Request, H, Rules, T);
     _ ->
       get_rules(Request, T, Rules ++ [H])
   end.
 
-
-get_rules_checked(Request, {Type, Pattern, List}, Rules, T) ->
-  case Type of
-    route ->
-      Route = binary:bin_to_list(Request#request.route),
-%%          logging:debug("Route=~p, Pattern=~p",[Route,Pattern]),
-      StatRoute = util:check_wildcard(Route, string:trim(Pattern)),
-      if StatRoute -> get_rules(Request, T, Rules ++ get_rules(Request, List, []));
-        true -> get_rules(Request, T, Rules)
-      end;
-    host ->
-      IsKey = parse_http:has_header("Host", Request),
-      if IsKey ->
-        Host = parse_http:get_header("Host", Request),
-        %%logging:debug("Host=`~s`,Pattern=`~s`",[Host, Pattern]),
-        StatHost = util:check_wildcard(Host, Pattern),
-        %%logging:debug("StatHost=~p",[StatHost]),
-        if StatHost -> get_rules(Request, T, Rules ++ get_rules(Request, List, []));
-          true -> get_rules(Request, T, Rules)
-        end;
-        true ->
-          logging:warn("The Host header is required by config, but client did not provide it, so ignoring all Host rules."),
-          get_rules(Request, T, Rules)
-      end
+get_context_rules(Request, {context, Name, Args, RuleList}, Rules,  RulesTail) ->
+  [{Name, ContextFun}] = ets:lookup(rules_context, Name),
+  ContextPassed = ContextFun(Args, Request),
+  if ContextPassed -> get_rules(Request, RulesTail, Rules ++ RuleList);
+     true -> get_rules(Request, RulesTail, Rules)
   end.
 
 get_rules(Request) ->

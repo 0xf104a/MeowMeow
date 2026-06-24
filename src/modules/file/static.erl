@@ -18,7 +18,7 @@
 -include("../../response.hrl").
 -include("../../config.hrl").
 
--export([init/0, terminate/1, get_custom_rules/0]).
+-export([init/0, terminate/1, get_custom_rules/0, get_context_rules/0]).
 
 rule_send_file(Arg, DefaultRawResponse) ->
   RawResponse = response:set_code(DefaultRawResponse, 200),
@@ -53,5 +53,7 @@ get_custom_rules() ->
     {"Send-File", fun(Args, Response) -> rule_send_file(Args, Response) end},
     {"DocDir", fun(Args, Response) -> rule_static_dir(Args, Response) end}
   ].
+
+get_context_rules() -> [].
 
 terminate(_State) -> ok.
