@@ -1,10 +1,9 @@
 %%%-------------------------------------------------------------------
 %%% @author f104a
-%%% @copyright (C) 2026, <COMPANY>
+%%% @copyright (C) 2026, Anna-Sophie Kasierocka
 %%% @doc
-%%%
+%%%  Module which provides Host and If-Header rules.
 %%% @end
-%%% Created : 24. черв. 2026 13:06
 %%%-------------------------------------------------------------------
 -module(header).
 -author("f104a").

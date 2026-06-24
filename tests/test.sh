@@ -13,6 +13,7 @@ if [[ $# -ge 1 ]]; then
 fi
 
 export TESTROOT="/tests/"
+export RUNTYPE="docker"
 
 /MeowMeow/bin/MeowMeow daemon
 ruby "/testroot/SimpleTest/src/test.rb" /tests
