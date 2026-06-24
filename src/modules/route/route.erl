@@ -1,10 +1,13 @@
 %%%-------------------------------------------------------------------
 %%% @author f104a
-%%% @copyright (C) 2026, <COMPANY>
+%%% @copyright (C) 2026, Anna-Sophie Kasierocka
 %%% @doc
-%%%
+%%%  Module which provides route-matching rule.
+%%%  Usage in config:
+%%%  Route "your?route*wildcard/path*/name.???"
+%%%     [RULES ...]
+%%%  End
 %%% @end
-%%% Created : 24. черв. 2026 13:16
 %%%-------------------------------------------------------------------
 -module(route).
 -author("f104a").
