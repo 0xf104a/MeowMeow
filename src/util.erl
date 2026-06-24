@@ -210,9 +210,7 @@ parse_arguments(Str, Parsed) ->
 
 parse_arguments(Str) -> parse_arguments(Str, []).
 
-parse_list(StrList) ->
-  Items = string:split(StrList, ","),
-  [string:strip(Item) || Item <- Items].
+parse_list(StrList) -> string:split(StrList, ",", all).
 
 %% @doc
 %% Sends SIGTERM to process running on port.

@@ -45,13 +45,20 @@ maybe_set_content_length(Response) when Response#response.body /= []->
   end;
 maybe_set_content_length(Response) -> Response.
 
+%% @doc
+%% Gets body with error description
+%% @end
+get_abort_body(Code) ->
+  lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>",
+    [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])).
+
 %%% @doc
 %%%  Function that generates error responses.
 %%%  Should not be used to generate 1xx, 2xx and 3xx responses,
 %%%  beyond legacy exemption of 204 No Content
 %%% @end
 abort(Code) ->
-  Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
+  Body = get_abort_body(Code),
   StrTime = get_time(),
   response:response(
     #{"Date" => StrTime,
@@ -61,7 +68,7 @@ abort(Code) ->
       "Server" => ?version}, Code, Body).
 
 abort(<<"HEAD">>, Code) ->
-  Body = lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>", [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])),
+  Body = get_abort_body(Code),
   StrTime = get_time(),
   response:response_headers(
     #{"Date" => StrTime,
@@ -98,14 +105,24 @@ handle_abort(Code, Request, Upstream) ->
   Upstream ! close,
   ok.
 
+get_default_response(<<"HEAD">>, InitialResponse) ->
+  InitialResponse#response{code=404,
+          body = <<"">>};
+
+get_default_response(_, InitialResponse) ->
+  InitialResponse#response{code=404,
+    body = list_to_binary(get_abort_body(404))}.
+
 handle(Resp, Upstream) ->
   Request = Resp#response.request,
   Method = Request#request.method,
   Rules = access:get_rules(Request),
   ResponseWithKeepAlive = set_keepalive(Resp),
-  %%logging:debug("Rules=~p", [Rules]),
-  Result = rules:rulechain_exec(Rules, ResponseWithKeepAlive#response{code=404,
-                                  body = list_to_binary(abort(Method,404))}),
+  logging:debug("ResponseWithKeepAlive=~p", [ResponseWithKeepAlive]),
+  DefaultResponse = get_default_response(Method, ResponseWithKeepAlive),
+  logging:debug("DefaultResp=~p", [DefaultResponse]),
+  Result = rules:rulechain_exec(Rules, DefaultResponse),
+  logging:debug("Result=~p", [Result]),
   case Result of
     %% Aborted response: an error happend
     {aborted, Code} ->

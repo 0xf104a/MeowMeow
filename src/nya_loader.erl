@@ -15,8 +15,16 @@
 nya_register_rules([]) -> ok;
 nya_register_rules(Rules) ->
   [{RuleName, RuleFun} | Tail] = Rules,
+  logging:debug("Registering ~p", [RuleName]),
   rules:register_rule(RuleName, RuleFun),
   nya_register_rules(Tail).
+
+nya_register_context_rules([]) -> ok;
+nya_register_context_rules(Rules) ->
+  [{RuleName, RuleFun} | Tail] = Rules,
+  logging:debug("Registering ~p", [RuleName]),
+  rules:register_context_rule(RuleName, RuleFun),
+  nya_register_context_rules(Tail).
 
 nya_load(ModuleNameStr) ->
   logging:info("Loading module " ++ ModuleNameStr),
@@ -30,8 +38,13 @@ nya_load(ModuleNameStr) ->
           ok = ModuleName:init(),
           Rules = ModuleName:get_custom_rules(),
           ok = nya_register_rules(Rules),
+          ContextRules = ModuleName:get_context_rules(),
+          logging:debug("~p", [ContextRules]),
+          ok = nya_register_context_rules(ContextRules),
           {ok, ModuleName};
-        false -> {error, not_a_nya_module}
+        false ->
+          logging:err("Can not load ~p: not a nya module", [ModuleNameStr]),
+          {error, not_a_nya_module}
       end;
     {error, Reason} ->
       {error, Reason}

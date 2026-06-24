@@ -13,7 +13,7 @@
 
 
 %% API
--export([init/0, terminate/1, get_custom_rules/0]).
+-export([init/0, terminate/1, get_custom_rules/0, get_context_rules/0]).
 
 get_custom_rules() ->
   [
@@ -36,6 +36,8 @@ get_custom_rules() ->
       end
     }
   ].
+
+get_context_rules() -> [].
 
 init() ->
   mcp_port:init_mcp().

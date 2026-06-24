@@ -29,7 +29,8 @@ module Tests
  
   def self.test_different_host
     r = TestHTTP::get("http://127.0.0.1/duckduck")
-    r.code == 200 and r.headers["X-Different-Host"] == "true" and r.headers["X-Powered-By"] == "Pusheen the Cat"
+    r.code == 200 and r.headers["X-Different-Host"] == "true" and r.headers["X-Powered-By"] == "Pusheen the Cat" \
+      and r.headers["X-Continuation"] == "goose"
   end
 
   def self.test_code
