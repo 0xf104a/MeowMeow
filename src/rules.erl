@@ -40,15 +40,15 @@ register_context_rule(Rule, RuleHandler) ->
 execute_rule(Rule, Args, Response) ->
   %%logging:debug("Executing rule ~s ~p",[Rule, Args]),
   case ets:lookup(rules, Rule) of
-       [{Rule, Handler}] ->
-         try
-           Handler(Args, Response)
-         catch error:Error:Stacktrace ->
-           logging:err("Can not execute rule: ~p~n~p", [Error, Stacktrace]),
-           {aborted, 502}
-         end;
-       Any -> logging:err("Bad rule ~s, lookup responded: ~p",[Rule, Any]),
-              {aborted, 500}
+    [{Rule, Handler}] ->
+      try
+        Handler(Args, Response)
+      catch error:Error:Stacktrace ->
+        logging:err("Can not execute rule: ~p~n~p", [Error, Stacktrace]),
+        {aborted, 502}
+      end;
+    Any -> logging:err("Bad rule ~s, lookup responded: ~p", [Rule, Any]),
+      {aborted, 500}
   end.
 
 %% Basic rules
@@ -77,24 +77,31 @@ rule_set_header([Header, Value], Response) ->
 rule_set_code(_, close) ->
   logging:err("Received closed response in Set-Code. Probably other rule has finished processing request earlier");
 
-rule_set_code(Arg, Response)->
+rule_set_code(Arg, Response) ->
   {Code, []} = string:to_integer(Arg),
   {ok, response:override_code(Response, Code)}.
 
 rulechain_exec([], Response) -> {ok, Response};
 rulechain_exec(Rules, Response) ->
-  [{Rule, Args} | T] = Rules,
-  NewResponseState = rules:execute_rule(Rule, Args, Response),
-  %%logging:debug("NewResponseState=~p", [NewResponseState]),
-  case NewResponseState of
-    {aborted, Code} -> {aborted, Code};
-    {sent, NewResponse} -> {sent, NewResponse};
-    {ok, NewResponse} -> rulechain_exec(T, NewResponse);
-    {ready2send, NewResponse} -> {ok, NewResponse};
-    Legacy ->
-      logging:err("Got unexpected response! Maybe legacy? ~p @ rules:rulechain_exec/2", [Legacy]),
-      logging:debug("Rule=~p", [Rule]),
-      {aborted, 502}
+  [CurrentRule | T] = Rules,
+  case CurrentRule of
+    {Rule, Args} -> NewResponseState = rules:execute_rule(Rule, Args, Response),
+      logging:debug("Rule=~p NewResponseState=~p", [Rule, NewResponseState]),
+      case NewResponseState of
+        {aborted, Code} -> {aborted, Code};
+        {sent, NewResponse} -> {sent, NewResponse};
+        {ok, NewResponse} -> rulechain_exec(T, NewResponse);
+        {ready2send, NewResponse} -> {ok, NewResponse};
+        Legacy ->
+          logging:err("Got unexpected response! Maybe legacy? ~p @ rules:rulechain_exec/2", [Legacy]),
+          logging:debug("Rule=~p", [Rule]),
+          {aborted, 502}
+      end;
+    {context, Name, Args, RuleList} ->
+      RulePassed = access:execute_context_rule(Response#response.request, Name, Args),
+      if RulePassed -> rulechain_exec(RuleList ++ T, Response);
+        true -> rulechain_exec(T, Response)
+      end
   end.
 
 register_basic() ->
@@ -102,7 +109,7 @@ register_basic() ->
   register_rule("Abort", fun(Args, Resp) -> rule_abort(Args, Resp) end),
   register_rule("No-Content", fun(Args, Resp) -> rule_no_content(Args, Resp) end),
   register_rule("Disallow", fun(Args, Resp) -> rule_disallow(Args, Resp) end),
-  register_rule("Set-Header", fun(Args, Resp) -> rule_set_header(Args, Resp) end), 
+  register_rule("Set-Header", fun(Args, Resp) -> rule_set_header(Args, Resp) end),
   register_rule("Set-Code", fun(Args, Resp) -> rule_set_code(Args, Resp) end),
   ok.
 

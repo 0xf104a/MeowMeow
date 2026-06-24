@@ -1,5 +1,5 @@
 -module(access).
--export([parse_access/1, load_access/1, get_rules/1, unload/0, reload/0]).
+-export([parse_access/1, load_access/1, get_rules/1, unload/0, reload/0, execute_context_rule/3]).
 -include("config.hrl").
 -include("request.hrl").
 
@@ -106,6 +106,10 @@ get_context_rules(Request, {context, Name, Args, RuleList}, Rules,  RulesTail) -
   if ContextPassed -> get_rules(Request, RulesTail, Rules ++ RuleList);
      true -> get_rules(Request, RulesTail, Rules)
   end.
+
+execute_context_rule(Request, Name, Args) ->
+  [{Name, ContextFun}] = ets:lookup(rules_context, Name),
+  ContextFun(Args, Request).
 
 get_rules(Request) ->
   [{table, Array}] = ets:lookup(access, table),

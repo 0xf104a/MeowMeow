@@ -28,7 +28,7 @@ get_context_rules() ->
   ].
 
 context_if_header([HeaderName], Request) ->
-  maps:is_key(HeaderName, Request#request.header);
+  parse_http:get_header(HeaderName, Request,  none) /= none;
 context_if_header([HeaderName, HeaderValue], Request) ->
   case maps:find(HeaderName, Request#request.header) of
     {ok, HeaderValue} -> true;
@@ -37,6 +37,7 @@ context_if_header([HeaderName, HeaderValue], Request) ->
 context_if_header(_, _) -> false.
 
 context_host([Pattern], Request) ->
-  Host = maps:get("Host", Request#request.header, ""),
+
+  Host = parse_http:get_header("Host", Request, ""),
   util:check_wildcard(Host, Pattern);
 context_host(_, _) -> false.
