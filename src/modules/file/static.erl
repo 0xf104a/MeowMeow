@@ -37,6 +37,8 @@ rule_send_file(Arg, DefaultRawResponse) ->
       Response#response.upstream ! set_tmr,
       handle:close_connection(Response#response.request, Response#response.upstream),
       {sent, Response#response{is_sent = true}};
+    {0, empty_file} ->
+      {aborted, 204};
     Any ->
       logging:err("Bad stat for ~s: ~p", [Arg, Any]),
       {aborted, 500}

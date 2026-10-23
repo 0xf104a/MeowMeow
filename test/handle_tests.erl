@@ -77,6 +77,39 @@ abort_tests() ->
              ?assertEqual(418, Code),
              ?assertNotEqual(nomatch, string:find(Body, "418 I'm a teapot"))
            end)},
+   {"abort(204) sends headers only: no body, no Content-Length and no Content-Type "
+    "(RFC 7230 section 3.3: 'All 1xx (Informational), 204 (No Content), and 304 (Not Modified) "
+    "responses do not include a message body'; section 3.3.2: 'A server MUST NOT send a "
+    "Content-Length header field in any response with a status code of 1xx (Informational) or 204 (No Content)'). "
+    "(regression: this used to fail because abort/1 renders the HTML error page for every code, so a "
+    "Send-File of an empty file answered '204 No Content' with 'Content-Length: 145' and the page as body; "
+    "curl reports it as 'Excess found writing body: excess = 145, size = 0')",
+    ?_test(begin
+             {Code, H, Body} = test_support:parse_response(handle:abort(204)),
+             ?assertEqual(204, Code),
+             ?assertEqual("", Body),
+             ?assertNot(maps:is_key("Content-Length", H)),
+             ?assertNot(maps:is_key("Content-Type", H)),
+             ?assertEqual("close", maps:get("Connection", H)),
+             ?assertEqual(?version, maps:get("Server", H)),
+             ?assert(maps:is_key("Date", H))
+           end)},
+   {"abort/1 sends no body for 304 and the 1xx codes either (RFC 7230 section 3.3)",
+    ?_assertEqual([{304, ""}, {100, ""}, {101, ""}],
+                  [{C, B} || {C, _, B} <- [test_support:parse_response(handle:abort(X)) || X <- [304, 100, 101]]])},
+   {"abort/1 still sends the HTML page for the neighbouring codes 200, 205 and 303",
+    ?_assert(lists:all(fun(X) ->
+                         {X, H, B} = test_support:parse_response(handle:abort(X)),
+                         B =/= "" andalso maps:get("Content-Length", H) == integer_to_list(length(B))
+                       end, [200, 205, 303]))},
+   {"abort(<<\"HEAD\">>, 204) and abort(<<\"GET\">>, 204) render exactly what abort(204) renders",
+    ?_test(begin
+             Strip = fun(W) -> {C, H, B} = test_support:parse_response(W), {C, maps:remove("Date", H), B} end,
+             Expected = Strip(handle:abort(204)),
+             ?assertEqual(Expected, Strip(handle:abort(<<"HEAD">>, 204))),
+             ?assertEqual(Expected, Strip(handle:abort(<<"GET">>, 204))),
+             ?assertMatch({204, _, ""}, Expected)
+           end)},
    {"get_abort_body/1 mentions the code, the reason phrase and the server version",
     ?_test(begin
              B = handle:get_abort_body(451),
@@ -190,6 +223,29 @@ rule_chain_tests() ->
     ?_test(begin
              {_, Msgs} = run_handle([{"No-Content", true}], req("/generate_204")),
              ?assertMatch([{204, _, ""}], sent(Msgs))
+           end)},
+   {"a rule aborting with 204 (what Send-File does for an empty file) answers '204 No Content' with "
+    "no body and no Content-Length, then closes (test_rules.rb test_send_file_empty). "
+    "(regression: this used to fail because handle/2 renders every {aborted, Code} with abort/1, which "
+    "always attaches the HTML error page and its Content-Length)",
+    ?_test(begin
+             {_, Msgs} = run_handle([{"Abort", ["204"]}], req("/send_empty")),
+             ?assertMatch([{send, _}, close | _], Msgs),
+             [{204, H, Body}] = sent(Msgs),
+             ?assertEqual("", Body),
+             ?assertNot(maps:is_key("Content-Length", H)),
+             ?assertNot(maps:is_key("Content-Type", H)),
+             ?assertEqual("close", maps:get("Connection", H))
+           end)},
+   {"a HEAD request whose rule chain aborts gets the error headers (incl. Content-Length) but no body "
+    "(RFC 7231 section 4.3.2). (regression: this used to fail because handle/2 rendered {aborted, Code} "
+    "with abort/1 regardless of the request method, so HEAD got the HTML page too)",
+    ?_test(begin
+             Head = test_support:request("HEAD", "/i_am_a_teapot", [{"Host", "h"}]),
+             {_, Msgs} = run_handle([{"Abort", ["418"]}], Head),
+             [{418, H, Body}] = sent(Msgs),
+             ?assertEqual("", Body),
+             ?assertEqual(integer_to_list(length(handle:get_abort_body(418))), maps:get("Content-Length", H))
            end)},
    {"a keep-alive request is answered with Connection: keep-alive and the connection stays open",
     ?_test(begin

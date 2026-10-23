@@ -11,6 +11,7 @@ COPY tests/vsn.txt /tests/vsn.txt
 RUN mkdir /testroot
 WORKDIR /testroot
 RUN apk add ruby ruby-libs ruby-bigdecimal ruby-bundler ruby-dev build-base git
+RUN gem install base64
 RUN git clone https://github.com/0xf104a/SimpleTest
 WORKDIR /testroot/SimpleTest/
 RUN bundle install
@@ -26,7 +27,8 @@ RUN rebar3 as prod release
 # Installation
 WORKDIR /
 RUN mkdir /etc/nya/
-COPY tests/config/*.conf /etc/nya/
+COPY tests/config/ /etc/nya/
+RUN chmod +x /etc/nya/*.sh 2>/dev/null || true
 RUN cp -r /buildroot/_build/prod/rel/MeowMeow /MeowMeow
 COPY tests/test.sh /usr/bin/TestMeowMeow
 RUN chmod +x /usr/bin/TestMeowMeow

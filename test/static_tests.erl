@@ -177,12 +177,26 @@ docdir_tests(Dir) ->
        [{send, W}, close] = test_support:collect(100),
        ?assertMatch({403, _, _}, test_support:parse_response(W))
      end)}},
-   {"an empty file is answered 204 with headers only",
+   {"an empty file is answered 204 with headers only, without Content-Length or Content-Type "
+    "(RFC 7230 section 3.3.2; test_rules.rb test_docdir_empty). (regression: this used to fail because "
+    "handle:abort/2 attached the Content-Length and Content-Type of the HTML error page to the 204)",
     {timeout, 10, ?_test(begin
-       {Resp, _C} = sock_response("GET", "/empty.txt", []),
+       {Resp, C} = sock_response("GET", "/empty.txt", []),
        {sent, _} = static_handler:handle_file(Dir, Resp),
        [{send, W}, close] = test_support:collect(100),
-       ?assertMatch({204, _, ""}, test_support:parse_response(W))
+       {204, H, Body} = test_support:parse_response(W),
+       ?assertEqual("", Body),
+       ?assertNot(maps:is_key("Content-Length", H)),
+       ?assertNot(maps:is_key("Content-Type", H)),
+       ?assertEqual(<<>>, wire(C))
+     end)}},
+   {"HEAD of an empty file is answered 204 with the same headers as GET",
+    {timeout, 10, ?_test(begin
+       {Resp, _C} = sock_response("HEAD", "/empty.txt", []),
+       {sent, _} = static_handler:handle_file(Dir, Resp),
+       [{send, W}, close] = test_support:collect(100),
+       {204, H, ""} = test_support:parse_response(W),
+       ?assertNot(maps:is_key("Content-Length", H))
      end)}},
    {"HEAD answers 200 with headers only",
     {timeout, 10, ?_test(begin
@@ -236,6 +250,7 @@ join_reader(_) -> receive {reader, Bin} -> Bin after 20000 -> erlang:error(reade
 %%--------------------------------------------------------------------
 sendfile_tests(Dir) ->
   File = filename:join(Dir, "file.txt"),
+  Empty = filename:join(Dir, "empty.txt"),
   [{"Send-File sends the headers through the upstream and the body to the socket, then closes",
     {timeout, 10, ?_test(begin
        {Resp, C} = sock_response("GET", "/catnip_info", []),
@@ -270,6 +285,34 @@ sendfile_tests(Dir) ->
        [{send, W} | _] = test_support:collect(100),
        ?assertMatch({451, _, ""}, test_support:parse_response(W)),
        ?assertEqual(<<"hello">>, wire(C))
+     end)}},
+   {"Send-File of an empty file aborts with 204: there is nothing to send",
+    ?_test(begin
+             {Resp, _C} = sock_response("GET", "/send_empty", []),
+             ?assertEqual({aborted, 204}, rules:execute_rule("Send-File", [Empty], Resp))
+           end)},
+   {"Send-File of an empty file through handle/2 answers '204 No Content' with no body and no "
+    "Content-Length (test_rules.rb test_send_file_empty). (regression: this used to fail because handle/2 "
+    "rendered {aborted, 204} with handle:abort/1, which always attaches the HTML error page and its "
+    "Content-Length; curl reported 'Excess found writing body: excess = 145, size = 0')",
+    {timeout, 10, ?_test(begin
+       {Resp, C} = sock_response("GET", "/send_empty", []),
+       test_support:set_access([{"Send-File", [Empty]}]),
+       try
+         ?assertEqual(ok, handle:handle(Resp, self())),
+         Msgs = test_support:collect(100),
+         ?assertMatch([{send, _}, close | _], Msgs),
+         [{send, W}] = [M || {send, _} = M <- Msgs],
+         {204, H, Body} = test_support:parse_response(W),
+         ?assertEqual("", Body),
+         ?assertNot(maps:is_key("Content-Length", H)),
+         ?assertNot(maps:is_key("Content-Type", H)),
+         ?assertEqual("close", maps:get("Connection", H)),
+         ?assertEqual(?version, maps:get("Server", H)),
+         ?assertEqual(<<>>, wire(C))
+       after
+         test_support:set_access([])
+       end
      end)}},
    {"Send-File of a missing file aborts with 500 (test_rules.rb test_send_file_non_extistent)",
     ?_test(begin
