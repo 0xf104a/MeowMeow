@@ -9,3 +9,7 @@ out/
 _build
 rebar.lock
 *.dump
+
+# Documentation site: staged sources and Zensical output
+_docs
+site

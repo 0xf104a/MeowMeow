@@ -1,0 +1,590 @@
+/*
+ * Material 3 token adapter for the Zensical modern theme.
+ *
+ * The `--m3-*` roles are the tonal palettes of f104a.io (shared with the smalldi documentation): the primary, secondary, tertiary and neutral palettes are
+ * derived from its container colors, so the containers and surfaces below are the same values the site uses and
+ * the other roles are the Material 3 tones of the same palettes. The `--md-*` block maps those roles onto the
+ * variables the theme reads; the component rules after it give the theme Material 3 shapes.
+ */
+
+[data-md-color-scheme="default"] {
+  color-scheme: light;
+
+  --m3-primary: #6e538a;
+  --m3-on-primary: #ffffff;
+  --m3-primary-container: #efdbff;
+  --m3-on-primary-container: #553b71;
+  --m3-secondary: #655a6f;
+  --m3-on-secondary: #ffffff;
+  --m3-secondary-container: #ecddf6;
+  --m3-on-secondary-container: #4d4357;
+  --m3-tertiary: #7f5259;
+  --m3-on-tertiary: #ffffff;
+  --m3-tertiary-container: #ffd9dd;
+  --m3-on-tertiary-container: #653b42;
+  --m3-error: #7f5259;
+  --m3-on-error: #ffffff;
+  --m3-error-container: #ffd9dd;
+  --m3-on-error-container: #653b42;
+  --m3-surface: #fff7ff;
+  --m3-on-surface: #1e1a21;
+  --m3-surface-dim: #dfd8e0;
+  --m3-surface-bright: #fff7ff;
+  --m3-surface-container-lowest: #ffffff;
+  --m3-surface-container-low: #f9f1fa;
+  --m3-surface-container: #f3ebf4;
+  --m3-surface-container-high: #eee6ef;
+  --m3-surface-container-highest: #e8e0e9;
+  --m3-surface-variant: #e8e0eb;
+  --m3-on-surface-variant: #4a454e;
+  --m3-outline: #7b757f;
+  --m3-outline-variant: #ccc4cf;
+  --m3-inverse-surface: #332f36;
+  --m3-inverse-on-surface: #f6eef7;
+  --m3-inverse-primary: #dabaf9;
+
+  --m3-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --m3-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --m3-shadow-3: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+[data-md-color-scheme="slate"] {
+  color-scheme: dark;
+
+  --m3-primary: #dabaf9;
+  --m3-on-primary: #3d2459;
+  --m3-primary-container: #553b71;
+  --m3-on-primary-container: #efdbff;
+  --m3-secondary: #cfc1da;
+  --m3-on-secondary: #362d40;
+  --m3-secondary-container: #4d4357;
+  --m3-on-secondary-container: #ecddf6;
+  --m3-tertiary: #f2b7bf;
+  --m3-on-tertiary: #4b252c;
+  --m3-tertiary-container: #653b42;
+  --m3-on-tertiary-container: #ffd9dd;
+  --m3-error: #f2b7bf;
+  --m3-on-error: #4b252c;
+  --m3-error-container: #653b42;
+  --m3-on-error-container: #ffd9dd;
+  --m3-surface: #151218;
+  --m3-on-surface: #e8e0e9;
+  --m3-surface-dim: #151218;
+  --m3-surface-bright: #3c383f;
+  --m3-surface-container-lowest: #100d13;
+  --m3-surface-container-low: #1e1a21;
+  --m3-surface-container: #221e25;
+  --m3-surface-container-high: #2c292f;
+  --m3-surface-container-highest: #37333a;
+  --m3-surface-variant: #4a454e;
+  --m3-on-surface-variant: #ccc4cf;
+  --m3-outline: #958e99;
+  --m3-outline-variant: #4a454e;
+  --m3-inverse-surface: #e8e0e9;
+  --m3-inverse-on-surface: #332f36;
+  --m3-inverse-primary: #6e538a;
+
+  --m3-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --m3-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --m3-shadow-3: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Shape and motion tokens, the same values as f104a.io. */
+:root {
+  --m3-shape-none: 0px;
+  --m3-shape-extra-small: 4px;
+  --m3-shape-small: 8px;
+  --m3-shape-medium: 12px;
+  --m3-shape-large: 16px;
+  --m3-shape-extra-large: 28px;
+  --m3-shape-full: 9999px;
+  --m3-motion-standard: cubic-bezier(0.2, 0, 0, 1);
+  --m3-motion-short: 200ms;
+  --m3-motion-medium: 300ms;
+}
+
+/* Mapping of the roles onto the theme's variables, in both schemes. */
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: var(--m3-surface);
+  --md-default-bg-color--light: color-mix(in srgb, var(--m3-surface-container-low) 88%, transparent);
+  --md-default-bg-color--lighter: color-mix(in srgb, var(--m3-surface-container-low) 70%, transparent);
+  --md-default-bg-color--lightest: color-mix(in srgb, var(--m3-surface-container-low) 50%, transparent);
+  --md-default-fg-color: var(--m3-on-surface);
+  --md-default-fg-color--light: var(--m3-on-surface-variant);
+  --md-default-fg-color--lighter: var(--m3-outline);
+  --md-default-fg-color--lightest: var(--m3-outline-variant);
+
+  --md-primary-fg-color: var(--m3-primary);
+  --md-primary-fg-color--light: var(--m3-primary-container);
+  --md-primary-fg-color--dark: var(--m3-on-primary-container);
+  --md-primary-bg-color: var(--m3-on-primary);
+  --md-primary-bg-color--light: var(--m3-on-primary-container);
+
+  --md-accent-fg-color: var(--m3-on-primary-container);
+  --md-accent-fg-color--transparent: var(--m3-primary-container);
+  --md-accent-bg-color: var(--m3-on-primary);
+  --md-accent-bg-color--light: var(--m3-primary-container);
+
+  --md-typeset-color: var(--m3-on-surface);
+  --md-typeset-a-color: var(--m3-primary);
+  --md-typeset-mark-color: var(--m3-tertiary-container);
+  --md-typeset-del-color: var(--m3-error-container);
+  --md-typeset-ins-color: var(--m3-secondary-container);
+  --md-typeset-kbd-color: var(--m3-surface-container-high);
+  --md-typeset-kbd-accent-color: var(--m3-surface-container-lowest);
+  --md-typeset-kbd-border-color: var(--m3-outline-variant);
+  --md-typeset-table-color: var(--m3-outline-variant);
+  --md-typeset-table-color--light: var(--m3-surface-container);
+
+  --md-code-bg-color: var(--m3-primary-container);
+  --md-code-bg-color--light: color-mix(in srgb, var(--m3-primary-container) 70%, var(--m3-surface));
+  --md-code-bg-color--lighter: color-mix(in srgb, var(--m3-primary-container) 40%, var(--m3-surface));
+  --md-code-fg-color: var(--m3-on-primary-container);
+  --md-code-hl-color: var(--m3-tertiary-container);
+  --md-code-hl-color--light: color-mix(in srgb, var(--m3-tertiary-container) 50%, transparent);
+
+  --md-admonition-fg-color: var(--m3-on-surface);
+  --md-admonition-bg-color: var(--m3-surface-container);
+  --md-warning-fg-color: var(--m3-on-error-container);
+  --md-warning-bg-color: var(--m3-error-container);
+  --md-footer-fg-color: var(--m3-on-surface);
+  --md-footer-fg-color--light: var(--m3-on-surface-variant);
+  --md-footer-fg-color--lighter: var(--m3-outline);
+  --md-footer-bg-color: var(--m3-surface-container);
+  --md-footer-bg-color--dark: var(--m3-surface-container-high);
+
+  --md-shadow-z1: var(--m3-shadow-1);
+  --md-shadow-z2: var(--m3-shadow-2);
+  --md-shadow-z3: var(--m3-shadow-3);
+
+  --md-mermaid-font-family: var(--md-text-font-family), sans-serif;
+  --md-mermaid-edge-color: var(--m3-outline);
+  --md-mermaid-node-bg-color: var(--m3-primary-container);
+  --md-mermaid-node-fg-color: var(--m3-on-primary-container);
+  --md-mermaid-label-bg-color: var(--m3-surface);
+  --md-mermaid-label-fg-color: var(--m3-on-surface);
+  --md-mermaid-sequence-actor-bg-color: var(--m3-secondary-container);
+  --md-mermaid-sequence-actor-fg-color: var(--m3-on-secondary-container);
+  --md-mermaid-sequence-actor-border-color: var(--m3-outline-variant);
+  --md-mermaid-sequence-actor-line-color: var(--m3-outline);
+  --md-mermaid-sequence-actorman-bg-color: var(--m3-secondary-container);
+  --md-mermaid-sequence-actorman-line-color: var(--m3-outline);
+  --md-mermaid-sequence-box-bg-color: var(--m3-surface-container);
+  --md-mermaid-sequence-box-fg-color: var(--m3-on-surface);
+  --md-mermaid-sequence-label-bg-color: var(--m3-tertiary-container);
+  --md-mermaid-sequence-label-fg-color: var(--m3-on-tertiary-container);
+  --md-mermaid-sequence-loop-bg-color: var(--m3-surface-container-high);
+  --md-mermaid-sequence-loop-fg-color: var(--m3-on-surface);
+  --md-mermaid-sequence-loop-border-color: var(--m3-outline-variant);
+  --md-mermaid-sequence-message-fg-color: var(--m3-on-surface);
+  --md-mermaid-sequence-message-line-color: var(--m3-outline);
+  --md-mermaid-sequence-note-bg-color: var(--m3-tertiary-container);
+  --md-mermaid-sequence-note-fg-color: var(--m3-on-tertiary-container);
+  --md-mermaid-sequence-note-border-color: var(--m3-outline-variant);
+  --md-mermaid-sequence-number-bg-color: var(--m3-primary);
+  --md-mermaid-sequence-number-fg-color: var(--m3-on-primary);
+}
+
+/* Code highlighting on the primary container, per scheme. */
+[data-md-color-scheme="default"] {
+  --md-code-hl-keyword-color: #6e3d8a;
+  --md-code-hl-function-color: #8a3a6d;
+  --md-code-hl-string-color: #2f6b4f;
+  --md-code-hl-number-color: #7f5259;
+  --md-code-hl-constant-color: #4a4f8a;
+  --md-code-hl-special-color: #7f5259;
+  --md-code-hl-name-color: var(--m3-on-primary-container);
+  --md-code-hl-variable-color: var(--m3-on-primary-container);
+  --md-code-hl-operator-color: var(--m3-on-surface-variant);
+  --md-code-hl-punctuation-color: var(--m3-on-surface-variant);
+  --md-code-hl-comment-color: #6f6577;
+  --md-code-hl-generic-color: var(--m3-on-surface-variant);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-code-hl-keyword-color: #e3b7ff;
+  --md-code-hl-function-color: #ffb0d6;
+  --md-code-hl-string-color: #b6e8c9;
+  --md-code-hl-number-color: #ffd9dd;
+  --md-code-hl-constant-color: #c4c6ff;
+  --md-code-hl-special-color: #ffd9dd;
+  --md-code-hl-name-color: var(--m3-on-primary-container);
+  --md-code-hl-variable-color: var(--m3-on-primary-container);
+  --md-code-hl-comment-color: #b9a9c4;
+  --md-code-hl-operator-color: #d9cde2;
+  --md-code-hl-punctuation-color: #d9cde2;
+  --md-code-hl-generic-color: #d9cde2;
+}
+
+/* Typography: Roboto body, Fira Code code, as on f104a.io. */
+body {
+  background-color: var(--m3-surface);
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  color: var(--m3-on-surface);
+  font-weight: 700;
+}
+
+.md-typeset a:hover,
+.md-typeset a:focus {
+  color: var(--m3-on-primary-container);
+}
+
+/* Top app bar: a floating bar on the surface, like the float bar of f104a.io. */
+.md-header {
+  color: var(--m3-on-surface);
+  background-color: color-mix(in srgb, var(--m3-surface-container-low) 88%, transparent);
+  border-bottom-left-radius: var(--m3-shape-large);
+  border-bottom-right-radius: var(--m3-shape-large);
+}
+
+.md-header--shadow {
+  box-shadow: var(--m3-shadow-2);
+}
+
+.md-header__button:hover {
+  opacity: 1;
+  color: var(--m3-on-primary-container);
+}
+
+/* Search: a pill-shaped field on a surface container. */
+.md-search__form {
+  background-color: var(--m3-surface-container-high);
+  border-radius: var(--m3-shape-full);
+  box-shadow: none;
+}
+
+.md-search__form:hover {
+  background-color: var(--m3-surface-container-highest);
+}
+
+.md-search__input {
+  color: var(--m3-on-surface);
+}
+
+.md-search__input::placeholder {
+  color: var(--m3-on-surface-variant);
+}
+
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background-color: var(--m3-surface-container-lowest);
+  border-radius: var(--m3-shape-extra-large) var(--m3-shape-extra-large) 0 0;
+}
+
+.md-search__output {
+  border-radius: 0 0 var(--m3-shape-extra-large) var(--m3-shape-extra-large);
+  box-shadow: var(--m3-shadow-3);
+}
+
+.md-search-result__meta {
+  background-color: var(--m3-surface-container);
+  color: var(--m3-on-surface-variant);
+}
+
+.md-search-result__item {
+  box-shadow: 0 -1px 0 var(--m3-outline-variant);
+}
+
+/* Navigation drawer: rounded surface, pill-shaped active indicator. */
+.md-sidebar--primary {
+  background-color: color-mix(in srgb, var(--m3-surface-container-low) 88%, transparent);
+  border-radius: var(--m3-shape-large);
+}
+
+.md-nav__link {
+  border-radius: var(--m3-shape-full);
+  transition: color var(--m3-motion-short) var(--m3-motion-standard),
+    background-color var(--m3-motion-short) var(--m3-motion-standard);
+}
+
+.md-nav__link:hover {
+  background-color: color-mix(in srgb, var(--m3-on-surface) 8%, transparent);
+  color: var(--m3-on-surface);
+}
+
+.md-nav--primary .md-nav__item .md-nav__link--active,
+.md-nav--primary .md-nav__item .md-nav__link--active code {
+  color: var(--m3-on-secondary-container);
+  background-color: var(--m3-secondary-container);
+  font-weight: 500;
+}
+
+.md-nav__title {
+  color: var(--m3-on-surface-variant);
+}
+
+.md-sidebar--secondary .md-sidebar__inner,
+.md-sidebar--secondary .md-sidebar-button {
+  background-color: var(--m3-surface-container-low);
+  border-radius: var(--m3-shape-large);
+}
+
+.md-sidebar--secondary .md-sidebar-button {
+  border-radius: var(--m3-shape-full);
+}
+
+/* Content: the page is the surface; cards are containers. */
+.md-typeset pre > code {
+  background-color: var(--m3-primary-container);
+  color: var(--m3-on-primary-container);
+  border-radius: var(--m3-shape-large);
+  box-shadow: var(--m3-shadow-1);
+}
+
+.md-typeset code {
+  border-radius: var(--m3-shape-extra-small);
+}
+
+.md-typeset .highlight span.filename {
+  background-color: var(--m3-secondary-container);
+  color: var(--m3-on-secondary-container);
+  border-radius: var(--m3-shape-large) var(--m3-shape-large) 0 0;
+  border-bottom: 1px solid var(--m3-outline-variant);
+}
+
+.md-typeset .highlight span.filename + pre > code {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.md-typeset .highlight .md-code__button,
+.md-typeset .md-clipboard {
+  color: var(--m3-on-primary-container);
+}
+
+.md-typeset .highlight .md-code__button:hover,
+.md-typeset .md-clipboard:hover {
+  color: var(--m3-on-primary-container);
+  opacity: 0.7;
+}
+
+.md-typeset table:not([class]) {
+  background-color: var(--m3-surface-container-lowest);
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: var(--m3-shape-medium);
+  overflow: hidden;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--m3-secondary-container);
+  color: var(--m3-on-secondary-container);
+}
+
+.md-typeset table:not([class]) td {
+  border-top: 1px solid var(--m3-outline-variant);
+}
+
+.md-typeset table:not([class]) tbody tr:hover {
+  background-color: var(--m3-surface-container);
+  box-shadow: none;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  background-color: var(--m3-secondary-container);
+  color: var(--m3-on-secondary-container);
+  border: none;
+  border-radius: var(--m3-shape-medium);
+  box-shadow: none;
+  font-size: 0.7rem;
+}
+
+.md-typeset .admonition.warning,
+.md-typeset details.warning,
+.md-typeset .admonition.danger,
+.md-typeset details.danger,
+.md-typeset .admonition.failure,
+.md-typeset details.failure,
+.md-typeset .admonition.bug,
+.md-typeset details.bug {
+  background-color: var(--m3-error-container);
+  color: var(--m3-on-error-container);
+}
+
+.md-typeset .admonition.tip,
+.md-typeset details.tip,
+.md-typeset .admonition.success,
+.md-typeset details.success,
+.md-typeset .admonition.example,
+.md-typeset details.example {
+  background-color: var(--m3-tertiary-container);
+  color: var(--m3-on-tertiary-container);
+}
+
+.md-typeset .admonition-title,
+.md-typeset summary {
+  color: inherit;
+  background-color: transparent;
+}
+
+.md-typeset .admonition-title:before,
+.md-typeset summary:before {
+  background-color: currentColor;
+}
+
+.md-typeset .admonition a,
+.md-typeset details a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.md-typeset .admonition code,
+.md-typeset details code {
+  background-color: color-mix(in srgb, var(--m3-surface) 45%, transparent);
+  color: inherit;
+}
+
+.md-typeset details:not([open]) > summary {
+  border-radius: var(--m3-shape-medium);
+}
+
+.md-typeset .tabbed-set {
+  border-radius: var(--m3-shape-medium);
+}
+
+.md-typeset .tabbed-labels {
+  box-shadow: 0 -1px 0 var(--m3-outline-variant) inset;
+}
+
+.md-typeset .tabbed-labels > label:hover {
+  color: var(--m3-on-primary-container);
+}
+
+.md-typeset .tabbed-set > input:checked + .tabbed-labels > label,
+.md-typeset .tabbed-labels:before {
+  color: var(--m3-primary);
+  background-color: var(--m3-primary);
+}
+
+.md-typeset .tabbed-set > input:checked + .tabbed-labels > label {
+  background-color: transparent;
+}
+
+.md-typeset .md-button {
+  background-color: var(--m3-secondary-container);
+  color: var(--m3-on-secondary-container);
+  border: none;
+  border-radius: var(--m3-shape-full);
+}
+
+.md-typeset .md-button:hover,
+.md-typeset .md-button:focus {
+  color: var(--m3-on-secondary-container);
+  box-shadow: var(--m3-shadow-1);
+  opacity: 1;
+}
+
+.md-typeset .md-button--primary {
+  background-color: var(--m3-primary);
+  color: var(--m3-on-primary);
+}
+
+.md-typeset .md-button--primary:hover,
+.md-typeset .md-button--primary:focus {
+  color: var(--m3-on-primary);
+}
+
+.md-typeset blockquote {
+  color: var(--m3-on-surface-variant);
+  border-left: 4px solid var(--m3-primary-container);
+}
+
+.md-typeset hr {
+  border-bottom: 1px solid var(--m3-outline-variant);
+}
+
+.md-typeset mark {
+  border-radius: var(--m3-shape-extra-small);
+}
+
+/* Mermaid renders into a shadow tree, so only custom properties reach it: the cluster rules read these two. */
+.md-typeset .mermaid {
+  background-color: var(--m3-surface-container-low);
+  border-radius: var(--m3-shape-large);
+  padding: 0.8rem;
+  --md-default-fg-color--lightest: var(--m3-surface-container-highest);
+  --md-default-fg-color--lighter: var(--m3-outline-variant);
+}
+
+.md-content__button {
+  background-color: var(--m3-surface-container-high);
+  border-radius: var(--m3-shape-full);
+}
+
+/* Footer, back-to-top, progress. */
+.md-footer {
+  background-color: var(--m3-surface-container);
+  color: var(--m3-on-surface);
+  border-top: none;
+  border-top-left-radius: var(--m3-shape-extra-large);
+  border-top-right-radius: var(--m3-shape-extra-large);
+}
+
+.md-footer-meta {
+  background-color: var(--m3-surface-container-high);
+  color: var(--m3-on-surface-variant);
+}
+
+.md-footer-meta.md-typeset a {
+  color: var(--m3-on-surface-variant);
+}
+
+.md-footer__link:hover {
+  color: var(--m3-on-primary-container);
+}
+
+.md-top {
+  background-color: var(--m3-primary-container);
+  color: var(--m3-on-primary-container);
+  border-radius: var(--m3-shape-full);
+  box-shadow: var(--m3-shadow-2);
+}
+
+.md-top:hover,
+.md-top:focus {
+  background-color: var(--m3-primary);
+  color: var(--m3-on-primary);
+}
+
+.md-progress {
+  background-color: var(--m3-primary);
+}
+
+/* Scrollbars, focus, motion. */
+.md-sidebar__scrollwrap,
+.md-typeset pre > code {
+  scrollbar-width: thin;
+  scrollbar-color: var(--m3-outline-variant) transparent;
+}
+
+.md-sidebar__scrollwrap:hover,
+.md-typeset pre > code:hover {
+  scrollbar-color: var(--m3-outline) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--m3-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-nav__link,
+  .md-header--shadow,
+  .md-typeset a,
+  .md-typeset .md-button {
+    transition: none;
+  }
+}
+
+@media print {
+  .md-typeset pre > code {
+    background-color: #ffffff;
+    color: #000000;
+    box-shadow: none;
+    border: 1px solid #cac4d0;
+  }
+}
