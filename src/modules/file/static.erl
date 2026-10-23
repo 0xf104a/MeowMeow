@@ -39,8 +39,6 @@ rule_send_file(Arg, DefaultRawResponse) ->
       {sent, Response#response{is_sent = true}};
     {0, empty_file} ->
       {aborted, 204};
-    {0, no_file} ->
-      {aborted, 404};
     Any ->
       logging:err("Bad stat for ~s: ~p", [Arg, Any]),
       {aborted, 500}
