@@ -81,10 +81,10 @@ execute_tests() ->
              rules:register_rule("BadMatch", fun(_, _) -> {ok, _} = file:read_file_info("/nonexistent/meow") end),
              ?assertEqual({aborted, 502}, rules:execute_rule("BadMatch", [], resp()))
            end)},
-   {"EXPECTATION: a handler that throws is isolated as {aborted, 502} like any other "
+   {"a handler that throws is isolated as {aborted, 502} like any other "
     "crash, so a buggy module cannot kill the connection handler. "
-    "FAILS BECAUSE: execute_rule/3 only catches class error (catch error:Error), "
-    "throw and exit propagate to the handler process",
+    "(regression: this used to fail because execute_rule/3 only catches class error (catch error:Error), "
+    "throw and exit propagate to the handler process)",
     ?_test(begin
              rules:register_rule("Throw", fun(_, _) -> throw(oops) end),
              ?assertEqual({aborted, 502}, rules:execute_rule("Throw", [], resp()))

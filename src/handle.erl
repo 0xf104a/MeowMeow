@@ -29,17 +29,14 @@ is_good(Request) ->
   end.
 
 get_ua(Request) ->
-  IsKey = maps:is_key("User-Agent", Request#request.header),
-  if IsKey -> maps:get("User-Agent", Request#request.header);
-    true -> "<<Unknown UA>>"
-  end.
+  parse_http:get_header("User-Agent", Request, "<<Unknown UA>>").
 
 log_response(Request, Code) ->
   logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]).
 
 %% If we passed with response being ready2send we may calculate Content-Length
 maybe_set_content_length(Response) when Response#response.body /= []->
-  RespLen = byte_size(Response#response.body),
+  RespLen = iolist_size(Response#response.body),
   if RespLen > 0 -> set_header(Response, "Content-Length", integer_to_list(RespLen));
     true -> Response
   end;
@@ -184,7 +181,7 @@ handle_post_unwrapped(Resp, Upstream) ->
   Rules = access:get_rules(Request),
   AResponse = set_keepalive(Resp),
   logging:debug("Before do_rules @ handle:handle_post_unwrapped/2"),
-  Result = rules:rulechain_exec(Rules, AResponse#response{code = 404, body = abort(404)}),
+  Result = rules:rulechain_exec(Rules, get_default_response(Request#request.method, AResponse)),
   %%logging:debug("Result = ~p", [Result]),
   case Result of
     {aborted, Code} ->
@@ -265,22 +262,27 @@ handler(_, Upstream, {aborted, Code}) ->
 handler(Sock, Upstream, Request) ->
   receive
     {data, Data} ->
-      ARequest = parse_http:update_request(Request, Data),
-      Finished = ARequest#request.is_headers_accepted,
-      %%logging:debug("Request finished = ~p", [Finished]),
-      if Finished ->
-        logging:debug("Finished processing request"),
-        case handle(Sock, Upstream, ARequest) of
-          not_closed ->
-            Upstream ! recv, %% Notify that connection is keep-alive -- need wait for packet
-            Upstream ! set_tmr, %% ask to reset keep-alive timer
-            handler(Sock, Upstream, parse_http:make_request(util:get_addr(Sock)));
-          ok ->
-            exit(done)
-        end;
-        true -> ok
-      end,
-      handler(Sock, Upstream, ARequest);
+      case parse_http:update_request(Request, Data) of
+        {aborted, Code} ->
+          %% malformed request line or header: answer and give up on the connection
+          handler(Sock, Upstream, {aborted, Code});
+        ARequest ->
+          Finished = ARequest#request.is_headers_accepted,
+          %%logging:debug("Request finished = ~p", [Finished]),
+          if Finished ->
+            logging:debug("Finished processing request"),
+            case handle(Sock, Upstream, ARequest) of
+              not_closed ->
+                Upstream ! recv, %% Notify that connection is keep-alive -- need wait for packet
+                Upstream ! set_tmr, %% ask to reset keep-alive timer
+                handler(Sock, Upstream, parse_http:make_request(util:get_addr(Sock)));
+              ok ->
+                exit(done)
+            end;
+            true -> ok
+          end,
+          handler(Sock, Upstream, ARequest)
+      end;
     closed -> %% Connection was closed, does not need to do anything
       exit(closed);
     timeout -> %% Timed-out waiting. Exit gracefully

@@ -9,7 +9,7 @@ get_cmd(Cmd) ->
   if length(L) == 0 -> pass;
     length(L) == 1 -> {string:trim(lists:nth(1, L)), true};
     length(L) > 1 -> [K | V] = L,
-      Args = lists:nth(1, V),
+      Args = string:trim(lists:nth(1, V), leading),
       {K, util:parse_arguments(Args)}
   end.
 
@@ -31,7 +31,11 @@ is_custom_rule(RuleName) ->
 parse_custom_rule(Dev, Key, Args) ->
   IsContextRule = is_context_rule(Key),
   IsCustomRule = is_custom_rule(Key),
-  if IsContextRule -> {ok, [{context, Key, Args, parse_section({ok, Dev}, [])}]};
+  if IsContextRule ->
+       case parse_section({ok, Dev}, []) of
+         {error, Err} -> {error, Err};
+         Inner -> {ok, [{context, Key, Args, Inner}]}
+       end;
      IsCustomRule -> {ok, [{Key, Args}]};
      true -> {error, Key}
   end.
@@ -62,11 +66,16 @@ parse_section({ok, Dev}, R) ->
   end.
 
 parse_access(FName) ->
-  Dev = file:open(FName, read),
-  R = parse_section(Dev, []),
-  %%logging:debug("R=~p",[R]),
-  file:close(Dev),
-  R.
+  case file:open(FName, read) of
+    {ok, Dev} ->
+      R = parse_section({ok, Dev}, []),
+      %%logging:debug("R=~p",[R]),
+      file:close(Dev),
+      R;
+    {error, Reason} ->
+      logging:err("Failed to open access file ~s: ~p", [FName, Reason]),
+      {error, Reason}
+  end.
 
 load_access(FName) ->
   logging:info("Loading access table from ~s", [FName]),

@@ -198,10 +198,9 @@ docker run --rm -v "$PWD":/src:ro -w /build erlang:28.4.1 sh -c 'cp -r /src/. . 
 ```
 
 Every test title states the expected behaviour and its source (README, RFC, MCP
-specification or the function's own documentation). Titles starting with
-`EXPECTATION:` pin down behaviour the current code does not implement yet and
-explain why the test fails (`FAILS BECAUSE: ...`). In CI the E2E job only runs
-once the EUnit job has passed.
+specification or the function's own documentation); titles with a
+`(regression: ...)` note describe a defect the test was written against. In CI
+the E2E job only runs once the EUnit job has passed.
 
 The documentation site is built with [Zensical](https://zensical.org/) from
 `README.md` and `docs/`:

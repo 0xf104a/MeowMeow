@@ -54,13 +54,13 @@ wildcard_tests() ->
     ?_assert(util:check_wildcard("/duckduckgoose", "/duckduck*"))},
    {"binaries are accepted as the subject (routes are binaries after parsing)",
     ?_assert(util:check_wildcard(<<"/index.html">>, "/*.html"))},
-   {"EXPECTATION: only '*' and '?' are wildcards, every other character is literal, "
+   {"only '*' and '?' are wildcards, every other character is literal, "
     "so the pattern '/a+b' matches the path '/a+b'. "
-    "FAILS BECAUSE: wildcard/1 only escapes '.', every other regex metacharacter "
+    "(regression: this used to fail because wildcard/1 only escapes '.', every other regex metacharacter "
     "('+', '(', '[', '$' ...) is passed through to re:compile unescaped, so '/a+b' "
-    "becomes the regex ^/a+b$ which matches '/aab' but not '/a+b'",
+    "becomes the regex ^/a+b$ which matches '/aab' but not '/a+b')",
     ?_assert(util:check_wildcard("/a+b", "/a+b"))},
-   {"EXPECTATION: '/a+b' must NOT match '/aab' (same root cause as above)",
+   {"'/a+b' must NOT match '/aab' (same root cause as above)",
     ?_assertNot(util:check_wildcard("/aab", "/a+b"))}].
 
 %%--------------------------------------------------------------------
@@ -107,9 +107,9 @@ address_tests() ->
     ?_assertNotMatch({_, _, _, _}, util:str2addr("1.2.3"))},
    {"addr2str formats a list of octets",
     ?_assertEqual("127.0.0.1", util:addr2str([127, 0, 0, 1]))},
-   {"EXPECTATION: addr2str accepts the address tuple socket:peername returns. "
-    "FAILS BECAUSE: io_lib:format/2 needs a list of arguments and addr2str passes "
-    "the tuple straight through (badarg)",
+   {"addr2str accepts the address tuple socket:peername returns. "
+    "(regression: this used to fail because io_lib:format/2 needs a list of arguments and addr2str passes "
+    "the tuple straight through (badarg))",
     ?_assertEqual("127.0.0.1", util:addr2str({127, 0, 0, 1}))},
    {"pretty_addr formats a socket address map as ip:port",
     ?_assertEqual("127.0.0.1:8080",
@@ -139,9 +139,9 @@ string_tests() ->
     ?_assertEqual("Host", util:prettify_header_key("  host "))},
    {"prettify_header_key capitalises both tokens of content-type",
     ?_assertEqual("Content-Type", util:prettify_header_key("CONTENT-type"))},
-   {"EXPECTATION: every '-' separated token is capitalised: x-powered-by -> X-Powered-By. "
-    "FAILS BECAUSE: string:split/2 without 'all' only splits at the first '-', so the "
-    "third token stays lower case (\"X-Powered-by\")",
+   {"every '-' separated token is capitalised: x-powered-by -> X-Powered-By. "
+    "(regression: this used to fail because string:split/2 without 'all' only splits at the first '-', so the "
+    "third token stays lower case (\"X-Powered-by\"))",
     ?_assertEqual("X-Powered-By", util:prettify_header_key("x-powered-by"))}].
 
 %%--------------------------------------------------------------------
@@ -164,9 +164,9 @@ argument_tests() ->
                   util:parse_arguments("\"/etc/nya/mimes.conf\""))},
    {"double spaces between arguments do not produce empty arguments",
     ?_assertEqual(["a", "b"], util:parse_arguments("a  b"))},
-   {"EXPECTATION: a quoted argument may contain any printable character, e.g. a comma. "
-    "FAILS BECAUSE: parse_quotes/1 whitelists characters with a regex that lacks ',', "
-    "';', '(', ')' etc., returns nomatch, and parse_arguments crashes with badmatch",
+   {"a quoted argument may contain any printable character, e.g. a comma. "
+    "(regression: this used to fail because parse_quotes/1 whitelists characters with a regex that lacks ',', "
+    "';', '(', ')' etc., returns nomatch, and parse_arguments crashes with badmatch)",
     ?_assertEqual(["a,b"], util:parse_arguments("\"a,b\""))}].
 
 %%--------------------------------------------------------------------
@@ -189,10 +189,10 @@ time_tests() ->
              ?assert(io_lib:printable_list(T)),
              ?assertEqual("GMT", lists:sublist(T, length(T) - 2, 3))
            end)},
-   {"EXPECTATION: get_time renders RFC 7231 IMF-fixdate ('Sun, 06 Nov 1994 08:49:37 GMT'), "
+   {"get_time renders RFC 7231 IMF-fixdate ('Sun, 06 Nov 1994 08:49:37 GMT'), "
     "exactly like format_file_time does. "
-    "FAILS BECAUSE: the format string in get_time/0 has two spaces between the day "
-    "and the month (\"~2..0w  ~s\"), so the Date header is malformed",
+    "(regression: this used to fail because the format string in get_time/0 has two spaces between the day "
+    "and the month (\"~2..0w  ~s\"), so the Date header is malformed)",
     ?_assertMatch({match, _}, re:run(util:get_time(), ?IMF_FIXDATE))}].
 
 %%--------------------------------------------------------------------

@@ -63,14 +63,14 @@ request_line_tests() ->
     ?_assertEqual({aborted, 400}, req("GET /\r\n\r\n"))},
    {"a request line with four tokens is a 400",
     ?_assertEqual({aborted, 400}, req("GET / HTTP/1.1 extra\r\n\r\n"))},
-   {"EXPECTATION: an empty line before the request-line is ignored (RFC 7230 section 3.5: a "
+   {"an empty line before the request-line is ignored (RFC 7230 section 3.5: a "
     "server 'SHOULD ignore at least one empty line (CRLF) received prior to the request-line'). "
-    "FAILS BECAUSE: parse_lines/2 treats the first line as the request-line unconditionally; "
-    "an empty line has no three tokens so the request is answered 400",
+    "(regression: this used to fail because parse_lines/2 treats the first line as the request-line unconditionally; "
+    "an empty line has no three tokens so the request is answered 400)",
     ?_assertEqual(<<"/">>, (req("\r\nGET / HTTP/1.1\r\n\r\n"))#request.route)},
-   {"EXPECTATION: an empty chunk leaves the request unchanged (socket:recv/2 may return <<>>). "
-    "FAILS BECAUSE: parse_lines/2 only special-cases [] and [[]]; an empty binary falls into "
-    "the string:split clause whose [L, T] match fails",
+   {"an empty chunk leaves the request unchanged (socket:recv/2 may return <<>>). "
+    "(regression: this used to fail because parse_lines/2 only special-cases [] and [[]]; an empty binary falls into "
+    "the string:split clause whose [L, T] match fails)",
     ?_test(begin R = fresh(), ?assertEqual(R, feed(R, "")) end)}].
 
 %%--------------------------------------------------------------------
@@ -124,18 +124,18 @@ streaming_tests() ->
              ?assert(R2#request.is_headers_accepted),
              ?assertMatch(#{"host" := "x"}, R2#request.header)
            end)},
-   {"EXPECTATION: a header line split across two TCP reads is reassembled "
-    "('Host: exa' + 'mple.com'). FAILS BECAUSE: the unfinished fragment is kept as a binary "
+   {"a header line split across two TCP reads is reassembled "
+    "('Host: exa' + 'mple.com'). (regression: this used to fail because the unfinished fragment is kept as a binary "
     "and update_request/2 joins it with string:concat/2 (i.e. '++'), which raises badarg for "
-    "a binary left operand",
+    "a binary left operand)",
     ?_test(begin
              R1 = feed(fresh(), "GET / HTTP/1.1\r\nHost: exa"),
              R2 = feed(R1, "mple.com\r\n\r\n"),
              ?assertMatch(#{"host" := "example.com"}, R2#request.header)
            end)},
-   {"EXPECTATION: a request line split across two TCP reads is reassembled. "
-    "FAILS BECAUSE: parse_lines/2 requires a CRLF in the very first chunk "
-    "([L, T] = string:split(...) has nothing to match and raises badmatch)",
+   {"a request line split across two TCP reads is reassembled. "
+    "(regression: this used to fail because parse_lines/2 requires a CRLF in the very first chunk "
+    "([L, T] = string:split(...) has nothing to match and raises badmatch))",
     ?_test(begin
              R1 = feed(fresh(), "GET / HT"),
              R2 = feed(R1, "TP/1.1\r\n\r\n"),
@@ -174,10 +174,10 @@ connection_tests() ->
     ?_assertNot(parse_http:is_close(Conn("keep-alive")))},
    {"an unknown connection token closes (safe default)",
     ?_assert(parse_http:is_close(Conn("upgrade")))},
-   {"EXPECTATION: connection options are case-insensitive (RFC 7230 section 6.1), so "
-    "'Connection: Keep-Alive' keeps the connection open. FAILS BECAUSE: is_close/1 compares "
+   {"connection options are case-insensitive (RFC 7230 section 6.1), so "
+    "'Connection: Keep-Alive' keeps the connection open. (regression: this used to fail because is_close/1 compares "
     "the raw value with the lower-case literal \"keep-alive\" only and treats anything else "
-    "as close",
+    "as close)",
     ?_assertNot(parse_http:is_close(Conn("Keep-Alive")))}].
 
 %%--------------------------------------------------------------------
@@ -192,10 +192,10 @@ accept_tests() ->
     ?_assertEqual([{"a/b", 1}, {"c/d", 0.5}], parse_http:parse_accept(" a/b , c/d ; q=0.5 "))},
    {"*/* is a pattern like any other",
     ?_assertEqual([{"*/*", 0.1}], parse_http:parse_accept("*/*;q=0.1"))},
-   {"EXPECTATION: 'q=1' is a valid q-value (RFC 7231 section 5.3.1: qvalue = (\"0\" [\".\" 0*3DIGIT]) "
+   {"'q=1' is a valid q-value (RFC 7231 section 5.3.1: qvalue = (\"0\" [\".\" 0*3DIGIT]) "
     "/ (\"1\" [\".\" 0*3(\"0\")])) so 'text/html;q=1' parses to [{\"text/html\", 1}]. "
-    "FAILS BECAUSE: parse_q_token/1 uses string:to_float/1, which rejects an integer without a "
-    "decimal point; the error branch then makes parse_accept return the atom ok",
+    "(regression: this used to fail because parse_q_token/1 uses string:to_float/1, which rejects an integer without a "
+    "decimal point; the error branch then makes parse_accept return the atom ok)",
     ?_test(begin
              [{"text/html", Q}] = parse_http:parse_accept("text/html;q=1"),
              ?assert(Q == 1)
@@ -220,10 +220,10 @@ accept_tests() ->
     ?_assert(parse_http:acceptable_for_request("application/json", Accept("application/json")))},
    {"acceptable_for_request/2 is true for Accept: */*",
     ?_assert(parse_http:acceptable_for_request("application/json", Accept("*/*")))},
-   {"EXPECTATION: acceptable_for_request/2 is false when Accept lists other types only "
+   {"acceptable_for_request/2 is false when Accept lists other types only "
     "('Accept: text/plain' must reject application/json - mcp_streamable relies on it to answer 406). "
-    "FAILS BECAUSE: it looks up the key \"Accept\" while parse_lines/2 stores header names "
-    "lower-cased (\"accept\"), so the header is never found and everything is accepted",
+    "(regression: this used to fail because it looks up the key \"Accept\" while parse_lines/2 stores header names "
+    "lower-cased (\"accept\"), so the header is never found and everything is accepted)",
     ?_assertNot(parse_http:acceptable_for_request("application/json", Accept("text/plain")))}].
 
 %%--------------------------------------------------------------------
@@ -238,8 +238,8 @@ sanitize_tests() ->
     ?_assertEqual("ab", parse_http:sanitize_cors_unsafe([$a, 127, $b]))},
    {"the empty string is unchanged",
     ?_assertEqual("", parse_http:sanitize_cors_unsafe(""))},
-   {"EXPECTATION: 0x19 is removed - the doc comment says 'Sanitizes string of 0x0-0x19 and 0x7F'. "
-    "FAILS BECAUSE: the guard is 'Character < 25' and 0x19 is 25, an off-by-one that keeps it",
+   {"0x19 is removed - the doc comment says 'Sanitizes string of 0x0-0x19 and 0x7F'. "
+    "(regression: this used to fail because the guard is 'Character < 25' and 0x19 is 25, an off-by-one that keeps it)",
     ?_assertEqual("ab", parse_http:sanitize_cors_unsafe([$a, 25, $b]))}].
 
 %%--------------------------------------------------------------------
@@ -253,10 +253,10 @@ query_tests() ->
     ?_assertEqual({ok, #{"x" => ""}}, parse_http:parse_query_parameters(Q("/a?x=")))},
    {"a pair without '=' is an error",
     ?_assertEqual({error, badpair}, parse_http:parse_query_parameters(Q("/a?flag")))},
-   {"EXPECTATION: several '&' separated pairs are all parsed ('x=1&y=2' -> #{x => 1, y => 2}). "
-    "FAILS BECAUSE: parse_query_params/2 splits the whole remaining list of pairs "
+   {"several '&' separated pairs are all parsed ('x=1&y=2' -> #{x => 1, y => 2}). "
+    "(regression: this used to fail because parse_query_params/2 splits the whole remaining list of pairs "
     "(string:split(Pairs, \"=\")) instead of the current Pair, so the first value swallows the "
-    "following pairs (\"1y=2\")",
+    "following pairs (\"1y=2\"))",
     ?_assertEqual({ok, #{"x" => "1", "y" => "2"}}, parse_http:parse_query_parameters(Q("/a?x=1&y=2")))},
    {"get_query_parameter/3 returns the value (mcp_sse uses it for sessionId)",
     ?_assertEqual("ABC", parse_http:get_query_parameter("sessionId", Q("/sse?sessionId=ABC"), none))},
@@ -303,6 +303,6 @@ legacy_tests() ->
     ?_assert(parse_http:ensure_body(<<"x">>))},
    {"ensure_body/1 is false for an empty binary",
     ?_assertNot(parse_http:ensure_body(<<>>))},
-   {"EXPECTATION: ensure_body/1 is true for any non-empty binary. "
-    "FAILS BECAUSE: the clause pattern <<_>> only matches a binary of exactly one byte",
+   {"ensure_body/1 is true for any non-empty binary. "
+    "(regression: this used to fail because the clause pattern <<_>> only matches a binary of exactly one byte)",
     ?_assert(parse_http:ensure_body(<<"abc">>))}].

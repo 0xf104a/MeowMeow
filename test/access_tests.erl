@@ -69,10 +69,10 @@ get_cmd_tests() ->
    {"two unquoted arguments",
     ?_assertEqual({"Set-Header", ["Content-Type", "text/html"]},
                   access:get_cmd("Set-Header Content-Type text/html"))},
-   {"EXPECTATION: extra whitespace between the directive and its argument is ignored "
+   {"extra whitespace between the directive and its argument is ignored "
     "('Abort  418' is the same as 'Abort 418'). "
-    "FAILS BECAUSE: get_cmd/1 splits at the first space only and hands ' 418' to "
-    "parse_arguments/1, which produces a leading empty argument",
+    "(regression: this used to fail because get_cmd/1 splits at the first space only and hands ' 418' to "
+    "parse_arguments/1, which produces a leading empty argument)",
     ?_assertEqual({"Abort", ["418"]}, access:get_cmd("Abort  418"))}].
 
 %%--------------------------------------------------------------------
@@ -196,11 +196,11 @@ shipped_routes_tests(Dir) ->
                                     {"DocDir", ["/var/www/html"]}]}, Rules)),
              ?assertMatch([_], [R || {context, "Route", ["/generate_204"], [{"No-Content", _}]} = R <- Rules])
            end)},
-   {"EXPECTATION: every Set-Header in config/mimes.conf has a header name AND a value, "
+   {"every Set-Header in config/mimes.conf has a header name AND a value, "
     "otherwise the rule crashes at request time (rule_set_header/2 needs [Header, Value] "
     "and execute_rule turns the crash into a 502 for e.g. every *.mp3 request). "
-    "FAILS BECAUSE: the /*.mp3 and /*.mp4 blocks read 'Set-Header audio/mpeg' and "
-    "'Set-Header video/mp4' - the 'Content-Type' name is missing",
+    "(regression: this used to fail because the /*.mp3 and /*.mp4 blocks read 'Set-Header audio/mpeg' and "
+    "'Set-Header video/mp4' - the 'Content-Type' name is missing)",
     ?_test(begin
              {ok, Mimes} = file:read_file("config/mimes.conf"),
              F = filename:join(Dir, "mimes_only.conf"),
@@ -237,20 +237,20 @@ error_path_tests(Dir) ->
              ?assertEqual({error, open}, access:parse_access(F)),
              ?assertEqual({ok, {abort_init, open}}, test_support:recv(500))
            end))},
-   {"EXPECTATION: an unknown directive inside a block is an error for the whole file, "
+   {"an unknown directive inside a block is an error for the whole file, "
     "exactly like one at top level. "
-    "FAILS BECAUSE: parse_custom_rule/3 stores whatever the nested parse_section "
+    "(regression: this used to fail because parse_custom_rule/3 stores whatever the nested parse_section "
     "returned - here {error, \"Bogus\"} - as the block's rule list instead of "
     "propagating the error, so parse_access returns a rule list containing garbage "
-    "(only the init:stop in abort_init hides this in production)",
+    "(only the init:stop in abort_init hides this in production))",
     ?_test(with_stub(fun() ->
              F = conf(Dir, "nested_unknown.conf", "Route /a\n Bogus\nEnd\n"),
              ?assertEqual({error, "Bogus"}, access:parse_access(F))
            end))},
-   {"EXPECTATION: parse_access/1 of a missing routes file returns {error, Reason} so "
+   {"parse_access/1 of a missing routes file returns {error, Reason} so "
     "server:start/0 can print 'Refusing to start server' (it pattern-matches {error, _}). "
-    "FAILS BECAUSE: parse_access/1 passes file:open's {error, enoent} straight into "
-    "parse_section/2 which only has a clause for {ok, Dev}, so it crashes with function_clause",
+    "(regression: this used to fail because parse_access/1 passes file:open's {error, enoent} straight into "
+    "parse_section/2 which only has a clause for {ok, Dev}, so it crashes with function_clause)",
     ?_assertMatch({error, _}, access:parse_access(filename:join(Dir, "does_not_exist.conf")))}].
 
 %%--------------------------------------------------------------------

@@ -51,9 +51,9 @@ start_server() ->
   Port.
 
 listen_tests() ->
-  [{"EXPECTATION: listen/1 (used by run/1) binds the port and returns the bound address. "
-    "FAILS BECAUSE: socket:bind/2 returns 'ok' since OTP 24 but listen/1 only matches "
-    "{ok, _} (listen_synchronized/1 handles both), so it crashes with case_clause",
+  [{"listen/1 (used by run/1) binds the port and returns the bound address. "
+    "(regression: this used to fail because socket:bind/2 returns 'ok' since OTP 24 but listen/1 only matches "
+    "{ok, _} (listen_synchronized/1 handles both), so it crashes with case_clause)",
     ?_assertMatch({ok, #{port := P}} when P > 0, server:listen(0))},
    {"listen_synchronized/1 reports a bind failure instead of crashing",
     ?_test(begin

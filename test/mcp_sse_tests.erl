@@ -58,10 +58,10 @@ pure_tests() ->
     ?_assertNot(mcp_sse:is_initialize_request(<<"{\"method\":\"tools/list\"}">>))},
    {"is_initialize_request/1 is false for a non-body value",
     ?_assertNot(mcp_sse:is_initialize_request(undefined))},
-   {"EXPECTATION: only a request whose JSON-RPC method is 'initialize' is an initialize request; "
+   {"only a request whose JSON-RPC method is 'initialize' is an initialize request; "
     "a tools/call that merely mentions the word is not. "
-    "FAILS BECAUSE: is_initialize_request/1 checks for the substrings \"method\" and "
-    "\"initialize\" anywhere in the body instead of decoding the JSON",
+    "(regression: this used to fail because is_initialize_request/1 checks for the substrings \"method\" and "
+    "\"initialize\" anywhere in the body instead of decoding the JSON)",
     ?_assertNot(mcp_sse:is_initialize_request(
                   <<"{\"method\":\"tools/call\",\"params\":{\"name\":\"initialize\"}}">>))},
    {"format_sse_event/2 renders an SSE frame",
@@ -98,11 +98,11 @@ dispatch_tests() ->
 
 %%--------------------------------------------------------------------
 flow_tests() ->
-  [{"EXPECTATION: GET without a session opens an event stream, starts the tool and emits the "
+  [{"GET without a session opens an event stream, starts the tool and emits the "
     "'endpoint' event '<route>?sessionId=<id>' (2024-11-05 spec). "
-    "FAILS BECAUSE: handle_sse_open/4 builds the URL with Route ++ \"?sessionId=\" where Route "
+    "(regression: this used to fail because handle_sse_open/4 builds the URL with Route ++ \"?sessionId=\" where Route "
     "is the binary the parser stores, and '++' on a binary raises badarg - the rule process "
-    "dies right after sending the headers",
+    "dies right after sending the headers)",
     {timeout, 15, ?_test(begin
        test_support:flush(),
        spawn_call(test_support:request("GET", "/sse", [{"Host", "h"}])),

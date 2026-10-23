@@ -50,11 +50,11 @@ if_header_tests() ->
     ?_assertNot((rule("If-Header"))(["x-test", "2"], req([{"X-Test", "1"}])))},
    {"If-Header <name> <value> fails when the header is absent",
     ?_assertNot((rule("If-Header"))(["x-test", "1"], req([])))},
-   {"EXPECTATION: 'If-Header X-Test 1' (name written as in the config) matches a request "
+   {"'If-Header X-Test 1' (name written as in the config) matches a request "
     "carrying 'X-Test: 1', exactly like the one-argument form does. "
-    "FAILS BECAUSE: the two-argument clause looks the name up verbatim with maps:find/2 while "
+    "(regression: this used to fail because the two-argument clause looks the name up verbatim with maps:find/2 while "
     "parse_http stores header names lower-cased, so any header name with upper-case letters "
-    "in routes.conf never matches",
+    "in routes.conf never matches)",
     ?_assert((rule("If-Header"))(["X-Test", "1"], req([{"X-Test", "1"}])))},
    {"If-Header with no arguments fails",
     ?_assertNot((rule("If-Header"))([], req([{"X-Test", "1"}])))}].

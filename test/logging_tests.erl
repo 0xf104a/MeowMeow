@@ -73,9 +73,14 @@ content_tests() ->
            end)}].
 
 robustness_tests() ->
-  [{"EXPECTATION: a logging call must never crash its caller, even with a "
+  [{"a logging call must never crash its caller, even with a "
     "format/argument mismatch, and especially when the level is filtered out. "
-    "FAILS BECAUSE: log_write/4 runs io_lib:format/2 before checking the level and "
+    "(regression: this used to fail because log_write/4 runs io_lib:format/2 before checking the level and "
     "lets the badarg escape. configuration:get/2 (bool) relies on exactly such a "
-    "call (\"...~s...~p\" with []) and therefore crashes instead of reporting the error",
-    ?_assertEqual(ok, at_level("0", fun() -> logging:err("~s ~p", []) end))}].
+    "call (\"...~s...~p\" with []) and therefore crashes instead of reporting the error)",
+    ?_test(begin
+             Bad = fun() -> logging:err("~s ~p", []) end,
+             ?assertEqual("", at_level("0", Bad)),
+             Out = at_level("4", Bad),
+             ?assertNotEqual(nomatch, string:find(Out, "bad log format"))
+           end)}].

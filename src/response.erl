@@ -4,6 +4,7 @@
 -include("config.hrl").
 -include("response.hrl").
 
+get_desc(Code) when is_integer(Code) -> get_desc(integer_to_list(Code));
 get_desc(Code) ->
   Responses = #{
     "100" => "Continue",
@@ -66,7 +67,8 @@ get_desc(Code) ->
     "510" => "Not Extended",
     "511" => "Network Authentication Required"
   },
-  maps:get(Code, Responses).
+  %% Set-Code accepts any integer, so unregistered codes get a generic phrase
+  maps:get(Code, Responses, "Unknown Status").
 
 response2str(PList, Index, CurStr) ->
   if Index > length(PList) -> CurStr;

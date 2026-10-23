@@ -143,10 +143,17 @@ handle_file(DocDir, DefaultResponse) ->
           "Last-Modified" => util:format_file_time(FInfo#file_info.mtime),
           "Server" => ?version})),
       case Method of
-        <<"GET">> -> handle_file(ResponseHeadered, Upstream, FName, FInfo);
-        <<"HEAD">> -> Upstream ! {send, response:response_headers(Response#response.headers, Response#response.code)};
-        Any -> logging:err("Bad method handling: ~p. Probably a bug @ handle:handle_file/2", [Any]),
+        <<"GET">> ->
+          handle_file(ResponseHeadered, Upstream, FName, FInfo),
+          {sent, Response};
+        <<"HEAD">> ->
+          %% RFC 7231 4.3.2: HEAD carries the same header fields as GET would
+          handle:log_response(Request, 200),
+          Upstream ! {send, response:response_headers(ResponseHeadered#response.headers,
+                                                      ResponseHeadered#response.code)},
+          {sent, Response};
+        Any ->
+          logging:err("Bad method handling: ~p @ static_handler:handle_file/2", [Any]),
           {aborted, 405}
-      end,
-      {sent, Response}
+      end
   end.

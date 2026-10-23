@@ -34,21 +34,21 @@ generate_session_id() -> generate_session_id(64).
 %% @end
 %% @param Tool: tool to run
 %% @param KeepAliveMs: period for which session kept open in milliseconds
--spec start_mcp_session(string(), integer()) -> string().
+-spec start_mcp_session(string(), integer()) -> binary().
 start_mcp_session(Tool, KeepAliveMs) ->
   SessionId = generate_session_id(),
-  Pid = mcp_server:start([Tool, KeepAliveMs]),
+  {ok, Pid} = mcp_server:start([Tool, KeepAliveMs]),
   ets:insert(mcp_sessions, {SessionId, {Tool, Pid}}),
   SessionId.
 
 %% @doc
 %% Finds MCP session PID by session ID.
 %% @end
--spec get_mcp_session_by_id(string()) -> {ok, pid()} | none.
+-spec get_mcp_session_by_id(binary()) -> {ok, pid()} | none.
 get_mcp_session_by_id(SessionId) ->
   case ets:lookup(mcp_sessions, SessionId) of
     [{SessionId, {_, Pid}}] ->
-      Pid;
+      {ok, Pid};
     [] ->
       none
   end.
@@ -56,12 +56,12 @@ get_mcp_session_by_id(SessionId) ->
 %% @doc
 %% Sends request to terminate MCP session process.
 %% @end
--spec terminate_mcp_session(string()) -> ok | not_found.
+-spec terminate_mcp_session(binary()) -> ok | not_found.
 terminate_mcp_session(SessionId) ->
   case get_mcp_session_by_id(SessionId) of
     none -> not_found;
-    Pid ->
-      gen_server:call(Pid, terminate),
-      ets:remove(mcp_sessions, SessionId),
+    {ok, Pid} ->
+      catch mcp_server:terminate_session(Pid),
+      ets:delete(mcp_sessions, SessionId),
       ok
   end.

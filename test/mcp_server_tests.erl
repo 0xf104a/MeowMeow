@@ -94,12 +94,12 @@ io_tests() ->
        ?assertEqual({ok, Long}, test_support:recv(5000)),
        stop(Pid)
      end)}},
-   {"EXPECTATION: when the tool exits, buffered output is flushed, receivers get 'terminated' "
+   {"when the tool exits, buffered output is flushed, receivers get 'terminated' "
     "and the server stops with {subprocess_exited, Status} (that is what the exit_status "
     "clause of handle_info/2 is written to do). "
-    "FAILS BECAUSE: the clause matches {Port, exit_status, Code} but the port actually sends "
+    "(regression: this used to fail because the clause matches {Port, exit_status, Code} but the port actually sends "
     "{Port, {exit_status, Code}}, so the message hits the catch-all clause, which returns "
-    "the atom ok, and the gen_server crashes with {bad_return_value, ok}",
+    "the atom ok, and the gen_server crashes with {bad_return_value, ok})",
     {timeout, 10, ?_test(begin
        {Pid, Ref} = start(test_support:tool("printf") ++ " nonl", 5000),
        ok = mcp_server:connect_to_mcp_session(Pid),
@@ -136,18 +136,18 @@ robustness_tests() ->
        ?assertEqual(alive, down(Ref, 200)),
        stop(Pid)
      end)}},
-   {"EXPECTATION: an unknown info message is logged as a warning and the server keeps running. "
-    "FAILS BECAUSE: the catch-all handle_info/2 clause returns the atom ok instead of "
-    "{noreply, State}, so the gen_server exits with {bad_return_value, ok}",
+   {"an unknown info message is logged as a warning and the server keeps running. "
+    "(regression: this used to fail because the catch-all handle_info/2 clause returns the atom ok instead of "
+    "{noreply, State}, so the gen_server exits with {bad_return_value, ok})",
     {timeout, 10, ?_test(begin
        {Pid, Ref} = start(cat(), 5000),
        Pid ! unexpected_message,
        ?assertEqual(alive, down(Ref, 300)),
        stop(Pid)
      end)}},
-   {"EXPECTATION: an unknown call is logged as a warning and the server keeps running. "
-    "FAILS BECAUSE: the catch-all handle_call/3 clause returns the atom ok instead of a "
-    "{reply, ...} tuple, so the gen_server exits with {bad_return_value, ok}",
+   {"an unknown call is logged as a warning and the server keeps running. "
+    "(regression: this used to fail because the catch-all handle_call/3 clause returns the atom ok instead of a "
+    "{reply, ...} tuple, so the gen_server exits with {bad_return_value, ok})",
     {timeout, 10, ?_test(begin
        {Pid, Ref} = start(cat(), 5000),
        catch gen_server:call(Pid, unexpected_call, 500),

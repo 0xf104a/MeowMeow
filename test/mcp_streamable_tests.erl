@@ -58,15 +58,18 @@ mcp_streamable_test_() ->
 
 %%--------------------------------------------------------------------
 state_tests() ->
-  [{"mcp_request_state/1 defaults: no Accept, version 2025-03-26, no session, not initialize, no content type",
-    ?_assertEqual({undefined, "2025-03-26", none, false, none},
+  [{"mcp_request_state/1 defaults: no Accept, no version header, no session, not initialize, no content type",
+    ?_assertEqual({undefined, none, none, false, none},
                   mcp_streamable:mcp_request_state(test_support:request("GET", "/mcp", [{"Host", "h"}])))},
-   {"mcp_request_state/1 reads the MCP headers",
+   {"mcp_request_state/1 reads the MCP headers and strips Content-Type parameters",
     ?_assertEqual({"application/json, text/event-stream", "2025-11-25", "SID", true, "application/json"},
                   mcp_streamable:mcp_request_state(
-                    json_post("/mcp", [?V, {"Mcp-Session-Id", "SID"},
-                                       {"Accept", "application/json, text/event-stream"}],
-                              "{\"method\":\"initialize\"}")))}].
+                    test_support:request("POST", "/mcp",
+                                         [{"Host", "h"}, ?V, {"Mcp-Session-Id", "SID"},
+                                          {"Content-Type", "application/json; charset=utf-8"},
+                                          {"Content-Length", "23"},
+                                          {"Accept", "application/json, text/event-stream"}],
+                                         "{\"method\":\"initialize\"}")))}].
 
 %%--------------------------------------------------------------------
 dispatch_tests() ->
@@ -90,32 +93,33 @@ dispatch_tests() ->
                   call(test_support:request("DELETE", "/mcp", [{"Host", "h"}, ?V, {"Mcp-Session-Id", "UNKNOWN"}])))},
    {"an unsupported method is a 405",
     ?_assertEqual({aborted, 405}, call(test_support:request("PUT", "/mcp", [{"Host", "h"}, ?V])))},
-   {"EXPECTATION: an initialize request without Mcp-Protocol-Version is accepted (spec: the header "
+   {"an initialize request without Mcp-Protocol-Version is accepted (spec: the header "
     "is only required on requests *after* initialization; a server that gets none SHOULD assume "
     "2025-03-26 and negotiate the version in the initialize response). "
-    "FAILS BECAUSE: the first clause of rule_mcp_call/4 rejects every request whose version "
+    "(regression: this used to fail because the first clause of rule_mcp_call/4 rejects every request whose version "
     "(defaulting to 2025-03-26) sorts before 2025-11-25 with 501, so no client can ever initialize "
-    "without sending the header up front",
+    "without sending the header up front)",
     {timeout, 15, ?_assertNotEqual({aborted, 501}, call(json_post("/mcp", [], Init)))}},
-   {"EXPECTATION: 'Content-Type: application/json; charset=utf-8' is JSON (RFC 9110 section 8.3: "
-    "media type parameters). FAILS BECAUSE: the content type is compared verbatim with "
-    "\"application/json\" so any parameter yields 415",
+   {"'Content-Type: application/json; charset=utf-8' is JSON (RFC 9110 section 8.3: "
+    "media type parameters). (regression: this used to fail because the content type is compared verbatim with "
+    "\"application/json\" so any parameter yields 415)",
     {timeout, 15, ?_test(begin
        {Id, Pid} = new_session(),
+       Body = "{\"jsonrpc\":\"2.0\",\"method\":\"ping\"}",
        Req = test_support:request("POST", "/mcp",
                                   [{"Host", "h"}, ?V, {"Mcp-Session-Id", Id},
                                    {"Content-Type", "application/json; charset=utf-8"},
-                                   {"Content-Length", "35"}],
-                                  "{\"jsonrpc\":\"2.0\",\"method\":\"ping\"}"),
+                                   {"Content-Length", integer_to_list(length(Body))}],
+                                  Body),
        try
          ?assertNotEqual({aborted, 415}, call(Req))
        after
          catch mcp_server:terminate_session(Pid)
        end
      end)}},
-   {"EXPECTATION: an initialize request without an id is a 422 (that is what the 'none' branch of "
-    "handle_mcp_session_init/4 intends). FAILS BECAUSE: maps:get(<<\"id\">>, Decoded) raises "
-    "badkey before the branch can run",
+   {"an initialize request without an id is a 422 (that is what the 'none' branch of "
+    "handle_mcp_session_init/4 intends). (regression: this used to fail because maps:get(<<\"id\">>, Decoded) raises "
+    "badkey before the branch can run)",
     {timeout, 15, ?_assertEqual({aborted, 422},
                                 call(json_post("/mcp", [?V], "{\"jsonrpc\":\"2.0\",\"method\":\"initialize\"}")))}}].
 
@@ -153,12 +157,12 @@ flow_tests() ->
        ?assertEqual(204, R4#response.code),
        ?assert(test_support:wait_until(fun() -> not is_process_alive(Pid) end, 2000))
      end)}},
-   {"EXPECTATION: GET with a session and 'Accept: application/json, text/event-stream' opens an "
+   {"GET with a session and 'Accept: application/json, text/event-stream' opens an "
     "event stream that is closed when the session terminates. "
-    "FAILS BECAUSE: handle_mcp_stream/2 passes the session id string instead of the session pid "
+    "(regression: this used to fail because handle_mcp_stream/2 passes the session id string instead of the session pid "
     "to mcp_server:connect_to_mcp_session/1 (gen_server:call on a string), so the stream process "
     "dies right after sending the headers; mcp_stream_loop/2 would also never relay data because "
-    "it waits for {data, _} while mcp_server broadcasts bare binaries",
+    "it waits for {data, _} while mcp_server broadcasts bare binaries)",
     {timeout, 15, ?_test(begin
        test_support:flush(),
        {Id, Pid} = new_session(),
@@ -174,10 +178,10 @@ flow_tests() ->
        ?assert(lists:member(close, Rest)),
        ?assertMatch([{sse_done, {sent, _}}], [M || {sse_done, _} = M <- Rest])
      end)}},
-   {"EXPECTATION: GET whose Accept header excludes the stream types is a 406 (spec: the client "
-    "MUST include Accept: text/event-stream). FAILS BECAUSE: parse_http:acceptable_for_request/2 "
+   {"GET whose Accept header excludes the stream types is a 406 (spec: the client "
+    "MUST include Accept: text/event-stream). (regression: this used to fail because parse_http:acceptable_for_request/2 "
     "never finds the Accept header (it looks up \"Accept\" while headers are stored lower-cased), "
-    "so the request falls through to handle_mcp_stream/2 and crashes there",
+    "so the request falls through to handle_mcp_stream/2 and crashes there)",
     {timeout, 15, ?_test(begin
        test_support:flush(),
        {Id, Pid} = new_session(),

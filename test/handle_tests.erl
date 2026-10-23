@@ -109,9 +109,9 @@ is_good_tests() ->
 misc_tests() ->
   [{"get_ua/1 reports an unknown agent when the header is absent",
     ?_assertEqual("<<Unknown UA>>", handle:get_ua(req("/")))},
-   {"EXPECTATION: get_ua/1 returns the User-Agent header value. "
-    "FAILS BECAUSE: it looks up the key \"User-Agent\" while parse_http stores header names "
-    "lower-cased (\"user-agent\"), so every client is reported as unknown",
+   {"get_ua/1 returns the User-Agent header value. "
+    "(regression: this used to fail because it looks up the key \"User-Agent\" while parse_http stores header names "
+    "lower-cased (\"user-agent\"), so every client is reported as unknown)",
     ?_assertEqual("curl/8", handle:get_ua(req("/", [{"User-Agent", "curl/8"}])))},
    {"log_response/2 does not crash and returns ok",
     ?_assertEqual(ok, handle:log_response(req("/"), 200))},
@@ -281,10 +281,10 @@ dispatch_tests() ->
              {_, Msgs} = run_handle3([{"Abort", ["418"]}], Post([{"Content-Length", "5"}], "hello")),
              ?assertMatch([{418, _, _}], sent(Msgs))
            end)},
-   {"EXPECTATION: a POST to a path no rule handles is answered 404 like a GET. "
-    "FAILS BECAUSE: handle_post_unwrapped/2 seeds the response body with the full text of "
+   {"a POST to a path no rule handles is answered 404 like a GET. "
+    "(regression: this used to fail because handle_post_unwrapped/2 seeds the response body with the full text of "
     "abort(404) (a string) and maybe_set_content_length/1 then calls byte_size/1 on that string, "
-    "so the handler crashes with badarg and the client never gets an answer",
+    "so the handler crashes with badarg and the client never gets an answer)",
     ?_test(begin
              {_, Msgs} = run_handle3([], Post([{"Content-Length", "5"}], "hello")),
              ?assertMatch([{send, _}, close], Msgs),
@@ -368,9 +368,9 @@ handler_process_tests() ->
        ?assertEqual({down, error}, down(Ref, 1000)),
        ?assertMatch([{500, _, _}], sent(test_support:collect(100)))
      end)}},
-   {"EXPECTATION: a malformed request line is answered with 400 Bad Request. "
-    "FAILS BECAUSE: handler/3 reads ARequest#request.is_headers_accepted before checking "
-    "for {aborted, 400}; on the tuple that raises badrecord and the handler dies without answering",
+   {"a malformed request line is answered with 400 Bad Request. "
+    "(regression: this used to fail because handler/3 reads ARequest#request.is_headers_accepted before checking "
+    "for {aborted, 400}; on the tuple that raises badrecord and the handler dies without answering)",
     {timeout, 10, ?_test(begin
        {Pid, _, _, _} = start_handler(),
        {ok, recv} = test_support:recv(1000),

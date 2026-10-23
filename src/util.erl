@@ -23,9 +23,12 @@ replace([_], {false, R}, Res) -> [$$ | R] ++ Res;
 % middle characters
 replace([_ | Q], {_, R}, Res) -> replace(Q, wildcard(hd(Q)), R ++ Res).
 
+%% Only '*' and '?' are wildcards; every regex metacharacter is escaped.
 wildcard($*) -> {true, [$*, $.]};
 wildcard($?) -> {true, [$.]};
-wildcard($.) -> {true, [$., $\\]};
+wildcard(C) when C == $.; C == $\\; C == $+; C == $^; C == $$; C == $(; C == $);
+                 C == $[; C == $]; C == ${; C == $}; C == $|
+                 -> {false, [C, $\\]};
 wildcard(C) -> {false, [C]}.
 
 wildcard2regex(Wildcard) ->
@@ -66,7 +69,7 @@ get_time() ->
     7 => "Sun"},
   {{Year, Month, Day}, {Hour, Minute, Second}} = erlang:universaltime(),
   WeekDay = maps:get(calendar:day_of_the_week(Year, Month, Day), Days),
-  lists:flatten(io_lib:format("~s, ~2..0w  ~s ~4..0w ~2..0w:~2..0w:~2..0w GMT", [WeekDay, Day, maps:get(Month, Months), Year, Hour, Minute, Second])).
+  lists:flatten(io_lib:format("~s, ~2..0w ~s ~4..0w ~2..0w:~2..0w:~2..0w GMT", [WeekDay, Day, maps:get(Month, Months), Year, Hour, Minute, Second])).
 
 format_file_time(Date) ->
   % mtime is the modification time in {{Y,M,D}, {H,M,S}} format
@@ -120,6 +123,7 @@ get_http_ver_pair(Str) ->
   [VerMajor, VerMinor] = string:split(Ver, "."),
   {str2int(VerMajor), str2int(VerMinor)}.
 
+addr2str(Addr) when is_tuple(Addr) -> addr2str(tuple_to_list(Addr));
 addr2str(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p", Addr)).
 
@@ -146,7 +150,7 @@ prettify_apply(S, A) ->
 
 prettify_header_key(K) ->
   Klower = string:lowercase(string:trim(K)),
-  Tokens = string:split(Klower, "-"),
+  Tokens = string:split(Klower, "-", all),
   prettify_apply("", Tokens).
 
 split_list([], _, SuperList, []) -> SuperList;
@@ -180,7 +184,8 @@ pretty_addr(Addr) ->
   lists:flatten(io_lib:format("~p.~p.~p.~p:~p", tup2list(maps:get(addr, Addr)) ++ [maps:get(port, Addr)])).
 
 parse_quotes(Str) ->
-  {ok, Regex} = re:compile("\"[A-Za-z0-9@:%._\s\*\+~#=&?\/\'\-]+\"|'[A-Za-z0-9@:%._\+~#=&?\s\*\/\"\-]+'"),
+  %% A quoted argument may contain anything but the quote character itself
+  {ok, Regex} = re:compile("\"[^\"]*\"|'[^']*'"),
   Match = re:run(Str, Regex),
   case Match of
     {match, [{Begin, End}]} ->

@@ -13,9 +13,19 @@
 
 -export([rule_mcp_sse_call/2, sse_push_loop/3, mcp_request_state/1, is_initialize_request/1, format_sse_event/2]).
 
+%% @doc True when Body is a JSON-RPC request whose method is "initialize".
+%% A body that is not (yet) valid JSON - it may still be arriving - falls back
+%% to a substring check so that partially received initialize requests are
+%% still recognised.
 is_initialize_request(Body) when is_binary(Body) ->
-  binary:match(Body, <<"\"method\"">>) =/= nomatch andalso
-    binary:match(Body, <<"\"initialize\"">>) =/= nomatch;
+  try json:decode(Body) of
+    #{<<"method">> := <<"initialize">>} -> true;
+    _ -> false
+  catch
+    _:_ ->
+      binary:match(Body, <<"\"method\"">>) =/= nomatch andalso
+        binary:match(Body, <<"\"initialize\"">>) =/= nomatch
+  end;
 is_initialize_request(Body) when is_list(Body) ->
   is_initialize_request(list_to_binary(Body));
 is_initialize_request(_) -> false.
@@ -23,7 +33,7 @@ is_initialize_request(_) -> false.
 mcp_request_state(Request) ->
   MCPSessionID = parse_http:get_query_parameter("sessionId", Request, none),
   IsInitializeRequest = is_initialize_request(Request#request.body),
-  ContentType = parse_http:get_header("Content-Type", Request, none),
+  ContentType = parse_http:media_type(parse_http:get_header("Content-Type", Request, none)),
   {MCPSessionID, IsInitializeRequest, ContentType}.
 
 %% Client opened SSE stream without session — create new session + subprocess,
@@ -39,7 +49,7 @@ handle_sse_open(Response, Tool, KeepAliveMs, SessionAt) ->
 
   %% Emit endpoint event — this is what n8n waits for
   %% Client will POST all messages to /sse?sessionId=<id>
-  PostUrl = [SessionAt ++ "?sessionId=", binary_to_list(MCPSessionID)],
+  PostUrl = [SessionAt, "?sessionId=", MCPSessionID],
   Upstream ! {send, format_sse_event("endpoint", PostUrl)},
 
   %% Register as receiver and loop

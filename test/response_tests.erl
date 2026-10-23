@@ -22,13 +22,13 @@ desc_test_() ->
     ?_assertEqual("Unavailable For Legal Reasons", response:get_desc("451"))},
    {"get_desc maps 502 to Bad Gateway (rules:execute_rule failure code)",
     ?_assertEqual("Bad Gateway", response:get_desc("502"))},
-   {"get_desc takes the code as a string, not an integer",
-    ?_assertError({badkey, 200}, response:get_desc(200))},
-   {"EXPECTATION: any valid 3-digit status code renders (Set-Code accepts any integer, "
+   {"get_desc accepts the code as an integer as well",
+    ?_assertEqual("OK", response:get_desc(200))},
+   {"any valid 3-digit status code renders (Set-Code accepts any integer, "
     "e.g. 'Set-Code 299' is a legal unregistered 2xx code), so get_desc must return a "
     "reason phrase - possibly a generic one - instead of raising. "
-    "FAILS BECAUSE: get_desc/1 does maps:get on a fixed table and raises badkey, which "
-    "crashes the request handler after the rules have run",
+    "(regression: this used to fail because get_desc/1 does maps:get on a fixed table and raises badkey, which "
+    "crashes the request handler after the rules have run)",
     ?_assert(is_list(response:get_desc("299")))}].
 
 render_test_() ->

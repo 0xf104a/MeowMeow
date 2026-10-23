@@ -56,9 +56,12 @@ handle_info({Port, {data, {eol, Line}}}, #state{port = Port, buf = Buf} = State)
 handle_info({Port, {data, {noeol, Partial}}}, #state{port = Port, buf = Buf} = State) ->
   {noreply, State#state{buf = <<Buf/binary, Partial/binary>>}};
 
-handle_info({Port, exit_status, Code}, #state{port = Port} = State) ->
+handle_info({Port, {exit_status, Code}}, #state{port = Port} = State0) ->
   logging:debug("Subprocess exited with code ~p", [Code]),
-  %% Flush any buffered partial line before terminating
+  %% The port may deliver the exit status before the last (unterminated)
+  %% line of output, so give pending data a moment to arrive, then flush
+  %% any buffered partial line before terminating.
+  State = drain_port(Port, State0),
   case State#state.buf of
     <<>> -> ok;
     Remaining -> broadcast_msg(Remaining, State)
@@ -76,8 +79,21 @@ handle_info(terminate, State) ->
   catch port_close(State#state.port),
   {stop, normal, State};
 
-handle_info(Any, _) ->
-  logging:warn("Received unknown message ~p @ mcp_server:handle_info/2", [Any]).
+handle_info(Any, State) ->
+  logging:warn("Received unknown message ~p @ mcp_server:handle_info/2", [Any]),
+  {noreply, State}.
+
+%% Deliver output that is still queued after the subprocess exited.
+drain_port(Port, #state{buf = Buf} = State) ->
+  receive
+    {Port, {data, {eol, Line}}} ->
+      broadcast_msg(<<Buf/binary, Line/binary>>, State),
+      drain_port(Port, State#state{buf = <<>>});
+    {Port, {data, {noeol, Partial}}} ->
+      drain_port(Port, State#state{buf = <<Buf/binary, Partial/binary>>})
+  after 100 ->
+    State
+  end.
 
 handle_call({notify, Data}, _, State) ->
   port_command(State#state.port, [Data, <<"\n">>]),
@@ -103,8 +119,9 @@ handle_call(terminate, _, State) ->
   catch port_close(State#state.port),
   {stop, normal, ok, State};
 
-handle_call(Any, _, _) ->
-  logging:warn("Received unknown message ~p @ mcp_server:handle_call/3", [Any]).
+handle_call(Any, _, State) ->
+  logging:warn("Received unknown message ~p @ mcp_server:handle_call/3", [Any]),
+  {reply, {error, unknown_call}, State}.
 
 handle_cast(_, State) ->
   {noreply, State}.

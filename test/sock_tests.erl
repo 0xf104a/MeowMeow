@@ -59,9 +59,9 @@ socket_test_() ->
              timer:sleep(20),
              ?assertEqual("abcd", sock:socket_recv_all(S, ""))
            end)},
-   {"EXPECTATION: socket_shutdown/2 half-closes the socket so the peer reads EOF. "
-    "FAILS BECAUSE: it calls gen_tcp:send(Sock, How) - trying to send the atom 'write' - "
-    "instead of gen_tcp:shutdown/2",
+   {"socket_shutdown/2 half-closes the socket so the peer reads EOF. "
+    "(regression: this used to fail because it calls gen_tcp:send(Sock, How) - trying to send the atom 'write' - "
+    "instead of gen_tcp:shutdown/2)",
     ?_test(begin
              {S, C} = test_support:gen_tcp_pair(),
              ?assertEqual(ok, sock:socket_shutdown(S, write)),

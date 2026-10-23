@@ -114,22 +114,21 @@ flow_tests() ->
        ?assert(is_process_alive(maps:get(pid, S2))),
        ok = mcp_server:terminate_session(maps:get(pid, S2))
      end)}},
-   {"EXPECTATION: the route->session table outlives the connection handler that created it, "
+   {"the route->session table outlives the connection handler that created it, "
     "otherwise sessions are lost (and their tool processes leaked) as soon as that connection "
-    "closes. FAILS BECAUSE: init_table/0 creates the named ETS table in whichever request "
-    "handler first runs the rule, and ETS tables are deleted when their owner process exits",
+    "closes. (regression: this used to fail because init_table/0 creates the named ETS table in whichever request "
+    "handler first runs the rule, and ETS tables are deleted when their owner process exits)",
     {timeout, 15, ?_test(begin
-       %% earlier tests created the table from this very process; drop it
-       %% so that the handler below is the creator
-       catch ets:delete(?ROUTE_TABLE),
-       ?assertEqual(undefined, ets:info(?ROUTE_TABLE)),
        Self = self(),
        Handler = spawn(fun() ->
                          Self ! {first, call(json_post("/owner", Init))},
                          receive stop -> ok end
                        end),
        {ok, {first, {ready2send, _}}} = test_support:recv(5000),
+       ?assertNotEqual(Handler, ets:info(?ROUTE_TABLE, owner)),
        Handler ! stop,
        ?assert(test_support:wait_until(fun() -> not is_process_alive(Handler) end, 1000)),
-       ?assertNotEqual(undefined, ets:info(?ROUTE_TABLE))
+       ?assertNotEqual(undefined, ets:info(?ROUTE_TABLE)),
+       [{<<"/owner">>, Session}] = ets:lookup(?ROUTE_TABLE, <<"/owner">>),
+       ok = mcp_server:terminate_session(maps:get(pid, Session))
      end)}}].

@@ -34,8 +34,9 @@ loop(Sock) ->
 listen(Port) ->
   Addr = #{addr => util:str2addr(configuration:get("ListenHost",string)), family => inet, port => Port},
   {ok, Sock} = socket:open(inet, stream, tcp),
+  %% socket:bind/2 returns ok since OTP 24 and {ok, Port} before that
   case socket:bind(Sock, Addr) of
-    {ok, _} ->
+    Bound when Bound == ok; element(1, Bound) == ok ->
       R = socket:sockname(Sock),
       ok = socket:listen(Sock),
       socket:setopt(Sock, socket, reuseaddr, true),

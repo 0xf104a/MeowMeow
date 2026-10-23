@@ -192,11 +192,11 @@ docdir_tests(Dir) ->
        ?assertMatch({200, _, ""}, test_support:parse_response(W)),
        ?assertEqual(<<>>, wire(C))
      end)}},
-   {"EXPECTATION: HEAD carries the same Content-Length / Last-Modified / Date as GET would "
+   {"HEAD carries the same Content-Length / Last-Modified / Date as GET would "
     "(RFC 7231 section 4.3.2: 'The server SHOULD send the same header fields in response to a "
     "HEAD request as it would have sent if the request had been a GET'). "
-    "FAILS BECAUSE: the HEAD branch of handle_file/2 renders the headers of the Response "
-    "received before ResponseHeadered added Content-Length, Date and Last-Modified",
+    "(regression: this used to fail because the HEAD branch of handle_file/2 renders the headers of the Response "
+    "received before ResponseHeadered added Content-Length, Date and Last-Modified)",
     {timeout, 10, ?_test(begin
        {Resp, _C} = sock_response("HEAD", "/file.txt", []),
        {sent, _} = static_handler:handle_file(Dir, Resp),
@@ -205,10 +205,10 @@ docdir_tests(Dir) ->
        ?assertEqual("5", maps:get("Content-Length", H)),
        ?assert(maps:is_key("Last-Modified", H))
      end)}},
-   {"EXPECTATION: a method DocDir cannot serve (POST) is reported as {aborted, 405} so the "
-    "client gets an answer. FAILS BECAUSE: the catch-all branch builds {aborted, 405} but "
+   {"a method DocDir cannot serve (POST) is reported as {aborted, 405} so the "
+    "client gets an answer. (regression: this used to fail because the catch-all branch builds {aborted, 405} but "
     "discards it (compiler warning 'a term is constructed, but never used') and returns "
-    "{sent, Response} although nothing was sent",
+    "{sent, Response} although nothing was sent)",
     {timeout, 10, ?_test(begin
        Req = test_support:request("POST", "/file.txt", [{"Host", "h"}, {"Content-Length", "0"}]),
        Resp = test_support:response_for(Req),

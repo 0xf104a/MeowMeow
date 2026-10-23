@@ -49,9 +49,9 @@ How the suites are built:
 
 Every test title states the expected behaviour and where it comes from
 (README, RFC, MCP specification or the function's own documentation). Titles
-that start with `EXPECTATION:` pin down behaviour the current code does not
-implement yet; their title explains why the test fails (`FAILS BECAUSE: ...`).
-Fix the code, not the test, to make them green.
+carrying a `(regression: this used to fail because ...)` note describe the
+defect the test was written against. When a test goes red, fix the code, not
+the test, unless the reasoning in the title is wrong.
 
 ## End-to-end tests
 

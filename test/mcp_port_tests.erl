@@ -55,9 +55,9 @@ session_tests() ->
     ?_assertEqual(none, mcp_port:get_mcp_session_by_id(<<"NOPE">>))},
    {"terminate_mcp_session/1 of an unknown id is not_found",
     ?_assertEqual(not_found, mcp_port:terminate_mcp_session(<<"NOPE">>))},
-   {"EXPECTATION: terminate_mcp_session/1 stops the tool and forgets the session (its -spec says ok). "
-    "FAILS BECAUSE: it calls gen_server:call/2 on the stored {ok, Pid} tuple instead of the pid, "
-    "and afterwards calls the non-existent ets:remove/2 (the function is ets:delete/2)",
+   {"terminate_mcp_session/1 stops the tool and forgets the session (its -spec says ok). "
+    "(regression: this used to fail because it calls gen_server:call/2 on the stored {ok, Pid} tuple instead of the pid, "
+    "and afterwards calls the non-existent ets:remove/2 (the function is ets:delete/2))",
     {timeout, 10, ?_test(begin
        Id = mcp_port:start_mcp_session(cat(), 5000),
        {ok, Pid} = mcp_port:get_mcp_session_by_id(Id),

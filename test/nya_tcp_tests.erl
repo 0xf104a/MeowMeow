@@ -171,10 +171,10 @@ ctl_tests() ->
              ?assertEqual({ok, closed}, test_support:recv(1000)),
              ?assertEqual({down, closed}, down(Ref, 1000))
            end)},
-   {"EXPECTATION: an unknown command is logged and the control process keeps serving the "
+   {"an unknown command is logged and the control process keeps serving the "
     "connection (it logs 'Recieved unknown cmd' as a warning, not a fatal error). "
-    "FAILS BECAUSE: the catch-all receive clause does not recurse into nya_tcp_ctl/3, so the "
-    "process simply returns and the connection is left without its I/O process",
+    "(regression: this used to fail because the catch-all receive clause does not recurse into nya_tcp_ctl/3, so the "
+    "process simply returns and the connection is left without its I/O process)",
     ?_test(begin
              {Pid, Ref, _, C} = start_ctl(),
              {ok, {upstream, Pid}} = test_support:recv(1000),
@@ -204,10 +204,10 @@ timer_tests() ->
        ?assertEqual({down, timeout}, down(Ref, ?KEEPALIVE_MS * 4)),
        ?assertEqual({error, closed}, gen_tcp:recv(C, 0, 1000))
      end)}},
-   {"EXPECTATION: when the idle timer fires the handler is told 'timeout' (as the 'recv' "
+   {"when the idle timer fires the handler is told 'timeout' (as the 'recv' "
     "timeout branch does) so it can exit instead of waiting forever. "
-    "FAILS BECAUSE: the 'timeout' receive clause closes the socket and exits without "
-    "notifying the handler, leaking one blocked handler process per idle connection",
+    "(regression: this used to fail because the 'timeout' receive clause closes the socket and exits without "
+    "notifying the handler, leaking one blocked handler process per idle connection)",
     {timeout, 10, ?_test(begin
        {Pid, Ref, _, _} = start_ctl(),
        {ok, {upstream, Pid}} = test_support:recv(1000),
@@ -223,11 +223,11 @@ timer_tests() ->
        Pid ! set_tmr,
        ?assertEqual({down, timeout}, down(Ref, ?KEEPALIVE_MS * 4))
      end)}},
-   {"EXPECTATION: a 'recv' issued while the idle timer is cancelled keeps waiting for the client "
+   {"a 'recv' issued while the idle timer is cancelled keeps waiting for the client "
     "and delivers data that arrives later (the process stays alive, so the pending recv must "
-    "not be lost). FAILS BECAUSE: when socket:recv/3 times out with the timer not set, the "
+    "not be lost). (regression: this used to fail because when socket:recv/3 times out with the timer not set, the "
     "control process goes back to its command loop without retrying the recv, so the handler's "
-    "request is silently dropped and late data is never delivered",
+    "request is silently dropped and late data is never delivered)",
     {timeout, 10, ?_test(begin
        {Pid, Ref, _, C} = start_ctl(),
        {ok, {upstream, Pid}} = test_support:recv(1000),

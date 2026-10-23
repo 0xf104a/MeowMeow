@@ -102,6 +102,8 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
           socket:close(Sock),
           exit(closed);
         {error, timeout} when TmRef == not_set ->
+          %% keep-alive timer disabled: keep waiting for the client
+          self() ! recv,
           nya_tcp_ctl(Sock, Handler, TmRef);
         {error, timeout} ->
           Handler ! timeout,
@@ -131,6 +133,7 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
       cancel_ref(TmRef),
       exit(requested);
     timeout ->
+      Handler ! timeout, %% let the request handler exit as well
       case socket:peername(Sock) of
         {ok, Addr} ->
           logging:info("Killing connection with ~p due to timeout", [util:pretty_addr(Addr)]),
@@ -138,10 +141,13 @@ nya_tcp_ctl(Sock, Handler, TmRef) ->
           cancel_ref(TmRef),
           exit(timeout);
         {error, Err} ->
-          logging:err("Peername error while handling timeout: ~p @ io_proxy_tcp/3", [Err])
+          logging:err("Peername error while handling timeout: ~p @ nya_tcp_ctl/3", [Err]),
+          socket:close(Sock),
+          exit(timeout)
       end;
     Any ->
-      logging:warn("Recieved unknown cmd: ~p @ io_proxy_tcp/3", [Any])
+      logging:warn("Recieved unknown cmd: ~p @ nya_tcp_ctl/3", [Any]),
+      nya_tcp_ctl(Sock, Handler, TmRef)
   end.
 
 nya_tcp_ctl_start(Sock, Handler) ->

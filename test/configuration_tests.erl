@@ -46,10 +46,10 @@ getter_tests() ->
     ?_assertEqual(true, configuration:get("Flag", bool))},
    {"get/1 of an unknown directive raises badkey",
     ?_assertError({badkey, "Nope"}, configuration:get("Nope"))},
-   {"EXPECTATION: get/2 bool returns {error, parse_error} for a value other than Yes/No "
+   {"get/2 bool returns {error, parse_error} for a value other than Yes/No "
     "(that is what the function's own error branch tries to do). "
-    "FAILS BECAUSE: the branch calls logging:err with a format that has two "
-    "placeholders but an empty argument list, so io_lib:format raises badarg",
+    "(regression: this used to fail because the branch calls logging:err with a format that has two "
+    "placeholders but an empty argument list, so io_lib:format raises badarg)",
     ?_test(begin
              test_support:set_config("Weird", "maybe"),
              ?assertEqual({error, parse_error}, configuration:get("Weird", bool))

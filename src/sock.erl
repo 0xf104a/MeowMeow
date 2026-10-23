@@ -43,6 +43,6 @@ socket_send(Sock, Packet, ChunkSize) ->
   socket_send_packets(Sock, lists:reverse(Chunks)).
 
 socket_shutdown(Sock, How) ->
-  gen_tcp:send(Sock, How).
+  gen_tcp:shutdown(Sock, How).
    
 
