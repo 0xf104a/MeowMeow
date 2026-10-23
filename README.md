@@ -189,6 +189,7 @@ rebar3 compile        # build
 rebar3 shell          # run with a shell attached
 rebar3 eunit          # unit tests (one suite per module under test/)
 ./test.sh             # unit tests + containerised E2E suite, both in Docker
+bench/run.sh          # load test with wrk in a container, table of req/s and latency
 ```
 
 Without a local Erlang (e.g. inside a Flatpak IDE) the unit tests run in Docker:
@@ -212,6 +213,7 @@ python .github/scripts/stage_docs.py && zensical serve
 
 - [Architecture](https://github.com/0xf104a/MeowMeow/blob/master/docs/development/architecture.md): processes, ETS tables and the life of a request.
 - [Testing](https://github.com/0xf104a/MeowMeow/blob/master/docs/development/testing.md): the test image and the CI workflows.
+- [Benchmarking](https://github.com/0xf104a/MeowMeow/blob/master/docs/development/benchmarking.md): the wrk harness in `bench/` and how to compare revisions.
 - [Releasing](https://github.com/0xf104a/MeowMeow/blob/master/docs/development/releasing.md): version bumps, tags and image publishing.
 
 Bug reports and pull requests are welcome on

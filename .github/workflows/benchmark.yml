@@ -1,0 +1,50 @@
+name: Benchmark
+
+# Manual only: shared runners are too noisy for numbers to be compared
+# across runs, but the table in the job summary still catches a request
+# path that got dramatically slower or started failing under load.
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Seconds per scenario
+        default: "10"
+      connections:
+        description: Open connections
+        default: "64"
+      scenarios:
+        description: Space separated scenario names (empty for all)
+        default: ""
+
+jobs:
+  bench:
+    name: wrk against the benchmark image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run benchmark
+        run: |
+          # shellcheck disable=SC2086
+          bench/run.sh --runtime docker --client container \
+            --duration "${{ inputs.duration }}" \
+            --connections "${{ inputs.connections }}" \
+            --label ci \
+            ${{ inputs.scenarios }}
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f bench/results/ci/summary.md ]; then
+            cat bench/results/ci/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: bench/results/ci
+          if-no-files-found: warn

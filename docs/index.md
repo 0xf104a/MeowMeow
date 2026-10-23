@@ -39,6 +39,7 @@ provides, and how the server works inside for anyone who wants to extend it.
 | [Architecture](development/architecture.md) | Processes, ETS tables and the life of a request. |
 | [Writing modules](development/writing-modules.md) | The `nya_module` behaviour and the rule contract. |
 | [Testing](development/testing.md) | The containerised integration suite and CI. |
+| [Benchmarking](development/benchmarking.md) | The wrk harness in `bench/` and how to compare revisions. |
 | [Releasing](development/releasing.md) | Version bumps, tags and image publishing. |
 
 ## Reference
