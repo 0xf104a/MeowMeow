@@ -53,7 +53,7 @@ get(VarName, bool) ->
   StrValue = string:trim(string:lowercase(maps:get(VarName, Map))),
   if StrValue == "no" -> false;
      StrValue == "yes" -> true;
-     true -> logging:err("Can not parse config: ~s option requires Yes/No values, but got ~p", []),
+     true -> logging:err("Can not parse config: ~s option requires Yes/No values, but got ~p", [VarName, StrValue]),
              {error, parse_error}
   end; 
 

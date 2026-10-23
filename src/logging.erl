@@ -30,10 +30,18 @@ log_write(Level, Colour, MsgFmt, Args) ->
   %%io:fwrite("Entered log()~n"),
   LogVerbose = get_verbosity(Level),
   LogLevel = configuration:get("LogLevel",int),
-  Msg = lists:flatten(io_lib:format(MsgFmt, Args)),
   if LogVerbose =< LogLevel ->
-    io:fwrite("\r~s~s~s~s~s|~s: ~s~s~n", [Colour, ?BOLD, level2str(Level), ?ENDC, ?BOLD, util:get_time(), ?ENDC, Msg]);
+    io:fwrite("\r~s~s~s~s~s|~s: ~s~s~n", [Colour, ?BOLD, level2str(Level), ?ENDC, ?BOLD, util:get_time(), ?ENDC, safe_format(MsgFmt, Args)]);
     true -> ok
+  end.
+
+%% A logging call must never crash its caller: a format/argument mismatch
+%% is reported instead of raised.
+safe_format(MsgFmt, Args) ->
+  try
+    lists:flatten(io_lib:format(MsgFmt, Args))
+  catch
+    _:_ -> lists:flatten(io_lib:format("<bad log format ~p with args ~p>", [MsgFmt, Args]))
   end.
 
 info(Msg) ->

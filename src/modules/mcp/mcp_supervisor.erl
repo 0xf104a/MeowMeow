@@ -9,15 +9,16 @@
 -author("f104a").
 
 %% API
--export([]).
+-export([supervise/1]).
 -record(mcp_supervisor_state, {
   mcp_tool_queue=[],
   max_tools=none,
   min_free_memory_mb=512
 }).
 
-supervise(State) ->
+%% @doc Not wired in yet: accepts the planned messages and keeps its state.
+supervise(#mcp_supervisor_state{} = State) ->
   receive
-    {wait_for_start, From, Tool} -> pass;
-    {tool_terminated, From, Tool} -> pass
+    {wait_for_start, _From, _Tool} -> supervise(State);
+    {tool_terminated, _From, _Tool} -> supervise(State)
   end.

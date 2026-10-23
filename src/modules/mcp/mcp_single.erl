@@ -10,15 +10,32 @@
 -include("../../response.hrl").
 -include("../../request.hrl").
 
--export([rule_mcp_sse_single_call/2]).
+-export([rule_mcp_sse_single_call/2, init_table/0]).
 
 -define(ROUTE_TABLE, mcp_route_sessions).
+-define(TABLE_OWNER, mcp_route_sessions_owner).
 
+%% @doc
+%% Makes sure the route -> session table exists. ETS tables die with their
+%% owner, so it is never created by a (short-lived) connection handler but
+%% by a dedicated keeper process that lives as long as the VM.
+%% @end
 init_table() ->
   case ets:info(?ROUTE_TABLE) of
     undefined ->
-      ets:new(?ROUTE_TABLE, [named_table, public, set]),
-      ok;
+      Self = self(),
+      Keeper = spawn(fun() ->
+                       catch register(?TABLE_OWNER, self()),
+                       catch ets:new(?ROUTE_TABLE, [named_table, public, set]),
+                       Self ! {?ROUTE_TABLE, ready},
+                       receive stop -> ok end
+                     end),
+      receive
+        {?ROUTE_TABLE, ready} -> ok
+      after 5000 ->
+        exit(Keeper, kill),
+        {error, timeout}
+      end;
     _ -> ok
   end.
 

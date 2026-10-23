@@ -29,10 +29,8 @@ get_context_rules() ->
 context_if_header([HeaderName], Request) ->
   parse_http:get_header(HeaderName, Request,  none) /= none;
 context_if_header([HeaderName, HeaderValue], Request) ->
-  case maps:find(HeaderName, Request#request.header) of
-    {ok, HeaderValue} -> true;
-    _ -> false
-  end;
+  %% header names are case-insensitive (parse_http stores them lower-cased)
+  parse_http:get_header(HeaderName, Request, none) == HeaderValue;
 context_if_header(_, _) -> false.
 
 context_host([Pattern], Request) ->

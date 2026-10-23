@@ -40,6 +40,7 @@ get_custom_rules() ->
 get_context_rules() -> [].
 
 init() ->
-  mcp_port:init_mcp().
+  ok = mcp_port:init_mcp(),
+  mcp_single:init_table().
 
 terminate(_) -> ok.

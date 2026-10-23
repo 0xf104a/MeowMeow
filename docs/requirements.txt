@@ -1,0 +1,3 @@
+# Python dependencies for building the documentation site.
+# Used by Read the Docs (.readthedocs.yaml), the Docs CI workflow and local builds.
+zensical==0.0.69

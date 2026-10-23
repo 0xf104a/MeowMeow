@@ -4,7 +4,7 @@
   is_close/1, get_header/2, get_header/3, ensure_body/1,
   update_request/2, parse_accept/1, sanitize_cors_unsafe/1,
   acceptable/2, acceptable_for_request/2, has_header/2,
-  parse_query_parameters/1, get_query_parameter/3]).
+  parse_query_parameters/1, get_query_parameter/3, media_type/1]).
 -import(util, [sget2/2]).
 -include("config.hrl").
 -include("request.hrl").
@@ -51,7 +51,7 @@ update_lines(OldLines, Raw) ->
 
 ensure_body(T1) ->
   case T1 of
-    <<_>> -> true;
+    <<_, _/binary>> -> true;
     _ -> false
   end.
 
@@ -124,14 +124,19 @@ parse_route(Route) ->
 
 parse_lines(Request, []) -> Request;
 parse_lines(Request, [[]]) -> Request;
+parse_lines(Request, <<>>) -> Request;
 parse_lines(Request, Lines) ->
   [L, T] = string:split(Lines, "\r\n"),
   %%logging:debug("L=~p, Lines=~p",[L, Lines]),
   case Request#request.route of
     nil ->
       Header = string:trim(L),
+      IsEmpty = string:is_empty(Header),
       Params = string:split(Header, " ", all),
-      if length(Params) /= 3 -> {aborted, 400};
+      if IsEmpty ->
+          %% RFC 7230 3.5: ignore empty lines before the request-line
+          guard_parse_lines(Request, T);
+        length(Params) /= 3 -> {aborted, 400};
         true -> {Route, GetParams} = parse_route(lists:nth(2, Params)),
           guard_parse_lines(Request#request{method = lists:nth(1, Params),
             route = Route,
@@ -157,8 +162,23 @@ parse_lines(Request, Lines) ->
       end
   end.
 
+%% @doc
+%% Feeds a chunk of raw bytes to the parser. Whatever was left over from the
+%% previous chunk (an incomplete line) is prepended, so lines may be split
+%% at arbitrary positions across TCP reads.
+%% @end
 update_request(Request, Lines) ->
-  parse_lines(Request, string:concat(Request#request.unfinished_line, Lines)).
+  Unfinished = iolist_to_binary(Request#request.unfinished_line),
+  Data = iolist_to_binary(Lines),
+  guard_parse_lines(Request#request{unfinished_line = ""},
+                    <<Unfinished/binary, Data/binary>>).
+
+%% @doc Media type of a Content-Type value without its parameters
+%% ("application/json; charset=utf-8" -> "application/json").
+media_type(none) -> none;
+media_type(undefined) -> undefined;
+media_type(ContentType) ->
+  string:lowercase(string:trim(hd(string:split(ContentType, ";")))).
 
 get_header(Header, Request, Default) ->
   Result = maps:get(string:to_lower(Header), Request#request.header, Default),
@@ -176,8 +196,9 @@ has_header(Header, Request) ->
 
 is_close(Request) ->
   %%logging:debug("Header=~p",[Request#request.header]),
-  case get_header("Connection", Request, badheader) of
-    badheader -> true;
+  %% connection options are case-insensitive (RFC 7230 6.1)
+  case string:lowercase(get_header("Connection", Request, "badheader")) of
+    "badheader" -> true;
     "" -> true;
     "close" -> true;
     "keep-alive" -> false;
@@ -187,9 +208,11 @@ is_close(Request) ->
 
 parse_q_token(QToken) ->
   case string:split(QToken, "=") of
-    ["q", FloatValue] ->
-      case string:to_float(FloatValue) of
-        {Float, ""} -> {ok, Float};
+    ["q", Value] ->
+      %% qvalue = ("0" ["." 0*3DIGIT]) / ("1" ["." 0*3("0")]) - RFC 7231 5.3.1
+      case {string:to_float(Value), string:to_integer(Value)} of
+        {{Float, ""}, _} -> {ok, Float};
+        {_, {Int, ""}} -> {ok, Int};
         Any -> logging:err("Can not parse q-value: ~p", [Any]), error
       end;
     Any ->
@@ -201,7 +224,7 @@ sanitize_cors_unsafe([], Acc) -> Acc;
 sanitize_cors_unsafe(Line, Acc) ->
   [Character | Tail] = Line,
   if Character == 9 -> sanitize_cors_unsafe(Tail, Acc ++ [Character]);
-    (Character < 25) or (Character >= 127) -> sanitize_cors_unsafe(Tail, Acc);
+    (Character =< 16#19) or (Character >= 127) -> sanitize_cors_unsafe(Tail, Acc);
     true -> sanitize_cors_unsafe(Tail, Acc ++ [Character])
   end.
 
@@ -254,17 +277,19 @@ acceptable(Target, ParsedPatterns) ->
 %% @param Request: clients request
 %% @see acceptable/2
 acceptable_for_request(What, Request) ->
-  HasAcceptHeader = maps:is_key("Accept", Request#request.header),
-  if HasAcceptHeader ->
-    Allowed = parse_accept(maps:get("Accept", Request#request.header)),
-    acceptable(What, Allowed);
-    true -> true
+  case get_header("Accept", Request, none) of
+    none -> true;
+    AcceptValue ->
+      case parse_accept(AcceptValue) of
+        Allowed when is_list(Allowed) -> acceptable(What, Allowed);
+        _ -> true   %% unparsable Accept header: do not refuse the request
+      end
   end.
 
 parse_query_params([], Accumulator) -> {ok, Accumulator};
 parse_query_params(Pairs, Accumulator) ->
   [Pair | Tail] = Pairs,
-  PairParsed = string:split(Pairs, "="),
+  PairParsed = string:split(Pair, "="),
   case PairParsed of
     [Key, Value] -> parse_query_params(Tail, maps:merge(Accumulator, #{Key => Value}));
     Any -> logging:err("Invalid query parameters pair: ~p(from ~s)", [Any, Pair]), {error, badpair}

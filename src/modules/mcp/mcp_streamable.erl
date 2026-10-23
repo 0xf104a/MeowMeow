@@ -16,17 +16,17 @@
 -export([rule_mcp_streamable_call/2]).
 
 mcp_request_state(Request) ->
-  Headers = Request#request.header,
   AcceptHeader = parse_http:get_header("Accept", Request, undefined),
-  %%logging:debug("~p", [Headers]),
-  MCPVersion = parse_http:get_header("Mcp-Protocol-Version", Request, "2025-03-26"),
+  %% The header is only mandatory after initialization; when absent the
+  %% version is negotiated in the initialize exchange, so 'none' is not rejected.
+  MCPVersion = parse_http:get_header("Mcp-Protocol-Version", Request, none),
   MCPSessionID = parse_http:get_header("Mcp-Session-Id", Request, none),
-  IsInitializeRequest = is_initialize_request(Request#request.body),
-  ContentType = parse_http:get_header("Content-Type", Request, none),
+  IsInitializeRequest = mcp_sse:is_initialize_request(Request#request.body),
+  ContentType = parse_http:media_type(parse_http:get_header("Content-Type", Request, none)),
   {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}.
 
 handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
-  RequestId = maps:get(<<"id">>, DecodedRequest),
+  RequestId = maps:get(<<"id">>, DecodedRequest, none),
   case RequestId of
     none -> {aborted, 422};
     _ ->
@@ -98,14 +98,16 @@ handle_mcp_call(Response, MCPSessionID, DecodedRequest) ->
     false -> handle_mcp_notification(Response, SessionPid)
   end.
 
+%% Server-initiated messages are relayed as SSE events until the session ends.
 mcp_stream_loop(Upstream, Response) ->
   receive
     terminated ->
       logging:debug("SSE stream terminated"),
       Upstream ! close, %% return keep-alive timer back
       {sent, Response};
-    {data, Data} ->
-      Upstream ! {send, Data}
+    Data when is_binary(Data) ->
+      Upstream ! {send, mcp_sse:format_sse_event("message", Data)},
+      mcp_stream_loop(Upstream, Response)
   end.
 
 handle_mcp_stream(Response, MCPSessionID) ->
@@ -113,23 +115,17 @@ handle_mcp_stream(Response, MCPSessionID) ->
     none ->
       logging:warn("MCP session ID ~p not found", [MCPSessionID]),
       {aborted, 404};
-    _ ->
+    {ok, SessionPid} ->
       Upstream = Response#response.upstream,
       Upstream ! cancel_tmr, %% We handle keep alive
       UpdatedResponse = response:set_header(Response, "Content-Type", "text/event-stream"),
       Upstream ! {send, response:response_headers(UpdatedResponse#response.headers, 200)},
-      mcp_server:connect_to_mcp_session(MCPSessionID),
+      mcp_server:connect_to_mcp_session(SessionPid),
       mcp_stream_loop(Upstream, Response)
   end.
-is_initialize_request(Body) when is_binary(Body) ->
-  binary:match(Body, <<"\"method\"">>) =/= nomatch andalso
-    binary:match(Body, <<"\"initialize\"">>) =/= nomatch;
-is_initialize_request(Body) when is_list(Body) ->
-  is_initialize_request(list_to_binary(Body));
-is_initialize_request(_) ->
-  false.
 
-rule_mcp_call(_, _, {_, MCPVersion, _, _, _}, _) when MCPVersion < ?mcp_version ->
+rule_mcp_call(_, _, {_, MCPVersion, _, _, _}, _)
+  when MCPVersion =/= none, MCPVersion < ?mcp_version ->
   logging:warn("Too old MCP version requested: ~p", [MCPVersion]),
   {aborted, 501};
 rule_mcp_call(<<"POST">>, _, {_, _, MCPSessionID, IsInitializeRequest, _}, _)
