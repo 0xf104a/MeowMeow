@@ -49,30 +49,43 @@ get_abort_body(Code) ->
   lists:flatten(io_lib:format("<html><head><title>~p ~s</title></head><body><h1><i>~p ~s</i></h1><hr><i> ~s </i></body></html>",
     [Code, get_desc(integer_to_list(Code)), Code, get_desc(integer_to_list(Code)), ?version])).
 
+%% RFC 7230 section 3.3: 1xx, 204 and 304 responses never carry a message
+%% body, and section 3.3.2 forbids Content-Length on 1xx and 204 responses.
+has_body(Code) when Code >= 100, Code < 200 -> false;
+has_body(204) -> false;
+has_body(304) -> false;
+has_body(_) -> true.
+
+%% Headers and body of an abort response for Code: the HTML error page
+%% with its Content-Type / Content-Length, or nothing at all for codes
+%% that must not carry a body.
+abort_parts(Code) ->
+  Base = #{"Date" => get_time(),
+           "Connection" => "close",
+           "Server" => ?version},
+  case has_body(Code) of
+    true ->
+      Body = get_abort_body(Code),
+      {Base#{"Content-Type" => "text/html",
+             "Content-Length" => integer_to_list(length(Body))}, Body};
+    false ->
+      {Base, ""}
+  end.
+
 %%% @doc
 %%%  Function that generates error responses.
 %%%  Should not be used to generate 1xx, 2xx and 3xx responses,
-%%%  beyond legacy exemption of 204 No Content
+%%%  beyond legacy exemption of 204 No Content (and 304), which are
+%%%  rendered as headers only.
 %%% @end
 abort(Code) ->
-  Body = get_abort_body(Code),
-  StrTime = get_time(),
-  response:response(
-    #{"Date" => StrTime,
-      "Content-Type" => "text/html",
-      "Content-Length" => integer_to_list(length(Body)),
-      "Connection" => "close",
-      "Server" => ?version}, Code, Body).
+  {Headers, Body} = abort_parts(Code),
+  response:response(Headers, Code, Body).
 
+%% HEAD carries the headers a GET would get, but never a body (RFC 7231 4.3.2)
 abort(<<"HEAD">>, Code) ->
-  Body = get_abort_body(Code),
-  StrTime = get_time(),
-  response:response_headers(
-    #{"Date" => StrTime,
-      "Content-Type" => "text/html",
-      "Content-Length" => integer_to_list(length(Body)),
-      "Connection" => "close",
-      "Server" => ?version}, Code);
+  {Headers, _Body} = abort_parts(Code),
+  response:response_headers(Headers, Code);
 
 abort(_, Code) ->
   abort(Code).
@@ -124,7 +137,7 @@ handle(Resp, Upstream) ->
     %% Aborted response: an error happend
     {aborted, Code} ->
       logging:info("~p.~p.~p.~p ~s ~s -- ~p ~s", util:tup2list(Request#request.src_addr) ++ [Request#request.method, Request#request.route, Code, get_desc(integer_to_list(Code))]),
-      Upstream ! {send, abort(Code)},
+      Upstream ! {send, abort(Method, Code)},
       Upstream ! close;
     %% Response maybe send by our side
     {ready2send, ResponseWithoutCL} ->

@@ -129,7 +129,7 @@ handle_file(DocDir, DefaultResponse) ->
       Upstream ! close,
       {sent, Response};
     {0, empty_file} ->
-      Upstream ! {send, handle:abort(<<"HEAD">>, 204)},
+      Upstream ! {send, handle:abort(Method, 204)},
       handle:log_response(Request, 204),
       Upstream ! close,
       {sent, Response};
