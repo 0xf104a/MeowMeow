@@ -14,7 +14,6 @@
 %%%     It calls the tool passing a header value to its stdin.
 %%%     If the tool exits with code 0, user is authorized.
 %%% @end
-%%% Created : 24. черв. 2026 15:55
 %%%-------------------------------------------------------------------
 -module(authorization).
 -author("f104a").
