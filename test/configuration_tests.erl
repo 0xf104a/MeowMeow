@@ -132,23 +132,27 @@ shipped_config_tests() ->
             file:close(Dev),
             Map
           end,
-  [{"config/meow.conf: port 80, host 127.0.0.1, keepalive 10000, four modules",
+  [{"config/meow.conf: port 80, host 127.0.0.1, keepalive 10000, the core modules, all loadable",
     ?_test(begin
              Map = Parse("config/meow.conf"),
              ?assertEqual("80", maps:get("ListenPort", Map)),
              ?assertEqual("127.0.0.1", maps:get("ListenHost", Map)),
              ?assertEqual("10000", maps:get("KeepAlive", Map)),
              ?assertEqual("No", maps:get("AllowLegacyHttp", Map)),
-             ?assertEqual(["static", "header", "route", "env"],
-                          util:parse_list(maps:get("LoadModules", Map)))
+             Mods = util:parse_list(maps:get("LoadModules", Map)),
+             ?assertEqual([], ["static", "header", "route", "env"] -- Mods),
+             %% every listed module must exist in the build
+             ?assertEqual([], [M || M <- Mods, code:ensure_loaded(list_to_atom(M)) =/= {module, list_to_atom(M)}])
            end)},
-   {"tests/config/meow.conf: what the E2E Docker image runs with",
+   {"tests/config/meow.conf: what the E2E Docker image runs with, all modules loadable",
     ?_test(begin
              Map = Parse("tests/config/meow.conf"),
              ?assertEqual("80", maps:get("ListenPort", Map)),
              ?assertEqual("0.0.0.0", maps:get("ListenHost", Map)),
              ?assertEqual("100", maps:get("KeepAlive", Map)),
-             ?assertEqual(4, list_to_integer(maps:get("LogLevel", Map)))
+             ?assertEqual(4, list_to_integer(maps:get("LogLevel", Map))),
+             Mods = util:parse_list(maps:get("LoadModules", Map)),
+             ?assertEqual([], [M || M <- Mods, code:ensure_loaded(list_to_atom(M)) =/= {module, list_to_atom(M)}])
            end)}].
 
 %%--------------------------------------------------------------------

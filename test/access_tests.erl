@@ -24,14 +24,26 @@
 setup() ->
   test_support:setup_config(#{"LogLevel" => "0"}),
   test_support:setup_rules(),
-  %% The shipped modules provide the Route/Host/If-* context rules and
-  %% the Send-File/DocDir rules used by the real configuration files.
-  [{ok, _} = nya_loader:nya_load(M) || M <- ["static", "header", "route", "env"]],
+  %% Load exactly the modules the E2E configuration loads, so that every
+  %% directive in tests/config/routes.conf is known to the parser.
+  [{ok, _} = nya_loader:nya_load(M) || M <- e2e_modules()],
+  %% An unknown directive makes access call server:abort_init/1, which
+  %% stops the VM; for the whole suite it is replaced by a stub that
+  %% reports the call to the test process instead.
+  ok = test_support:stub_server_abort_init(self()),
   test_support:tmp_dir().
 
 cleanup(Dir) ->
+  test_support:restore_server(),
   test_support:rm_rf(Dir),
   test_support:teardown_all(ok).
+
+%% LoadModules from tests/config/meow.conf (what tests/Dockerfile installs).
+e2e_modules() ->
+  {ok, Dev} = file:open("tests/config/meow.conf", read),
+  {ok, Map} = configuration:parse2map(Dev, #{"LoadModules" => ""}),
+  file:close(Dev),
+  [string:trim(M) || M <- util:parse_list(maps:get("LoadModules", Map)), string:trim(M) =/= ""].
 
 access_test_() ->
   {setup, fun setup/0, fun cleanup/1,
@@ -212,10 +224,13 @@ shipped_routes_tests(Dir) ->
            end)}].
 
 %%--------------------------------------------------------------------
+%% The abort_init stub is installed for the whole fixture (see setup/0);
+%% tests that assert on its message only need a clean mailbox. The stub
+%% reports to the fixture process, so the tests re-point it at themselves.
 with_stub(Fun) ->
   test_support:flush(),
   ok = test_support:stub_server_abort_init(self()),
-  try Fun() after test_support:restore_server() end.
+  Fun().
 
 error_path_tests(Dir) ->
   [{"an unknown directive aborts initialisation with the directive name and parse_access reports it",
