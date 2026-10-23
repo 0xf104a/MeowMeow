@@ -1,0 +1,17 @@
+# name	path	expected status	extra request headers (; separated, - for none)	extra wrk arguments (- for none)	description
+#
+# Every keep-alive scenario sends "Connection: keep-alive" explicitly: the
+# server closes the connection after a request that carries no Connection
+# header at all (parse_http:is_close/1), and wrk sends none by default.
+no_content	/generate_204	204	Connection: keep-alive	-	Routing and response assembly only, no file I/O
+index	/	200	Connection: keep-alive	-	Document root lookup and a small HTML file
+static_1k	/bench/1k.bin	200	Connection: keep-alive	-	1 KiB static file through DocDir
+static_64k	/bench/64k.bin	200	Connection: keep-alive	-	64 KiB static file, one chunk
+static_1m	/bench/1m.bin	200	Connection: keep-alive	--timeout 10s	1 MiB static file, 16 chunks
+static_16m	/bench/16m.bin	200	Connection: keep-alive	-c 16 --timeout 30s	16 MiB static file, 256 chunks, 16 connections
+sendfile_64k	/sendfile	200	Connection: keep-alive	-	64 KiB via Send-File, no DocDir lookup
+headers	/headers	204	Connection: keep-alive	-	Eight Set-Header rules before a 204
+deep_routes	/deep	204	Connection: keep-alive	-	256 non-matching Route blocks before the match
+not_found	/missing	404	Connection: keep-alive	-	404 from DocDir
+abort_418	/teapot	418	Connection: keep-alive	-	Abort directive
+conn_close	/generate_204	204	Connection: close	-	New TCP connection per request: accept and process spawn path

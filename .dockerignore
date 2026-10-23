@@ -1,0 +1,8 @@
+# Keep build contexts small: none of these are used by any Dockerfile.
+.git
+.claude
+_build
+_docs
+site
+bench/results
+*.dump

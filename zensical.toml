@@ -36,6 +36,8 @@ nav = [
     { "Architecture" = "docs/development/architecture.md" },
     { "Writing modules" = "docs/development/writing-modules.md" },
     { "Testing" = "docs/development/testing.md" },
+    { "Benchmarking" = "docs/development/benchmarking.md" },
+    { "Benchmark results" = "docs/benchmarks.md" },
     { "Releasing" = "docs/development/releasing.md" },
   ] },
   { "Reference" = [

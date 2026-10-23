@@ -1,0 +1,90 @@
+name: Benchmark
+
+# Runs bench/run.sh on a GitHub-hosted runner.
+#
+#  * On every release tag (same glob as the Docker workflow) the summary is
+#    recorded as bench/history/<tag>.json, docs/benchmarks.md is regenerated
+#    from the whole history and both are committed to master, which Read the
+#    Docs then rebuilds as "latest".
+#  * On manual runs the table only goes to the job summary and the artifact.
+#
+# Shared runners are noisy, so the numbers show trends and failures under
+# load rather than exact performance.
+on:
+  push:
+    tags: [ '*.*-*' ]
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Seconds per scenario
+        default: "10"
+      connections:
+        description: Open connections
+        default: "64"
+      scenarios:
+        description: Space separated scenario names (empty for all)
+        default: ""
+
+permissions:
+  contents: write
+
+# Recording commits to master, so never let two runs race each other.
+concurrency:
+  group: benchmark-history
+  cancel-in-progress: false
+
+jobs:
+  bench:
+    name: wrk against the benchmark image
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run benchmark
+        run: |
+          # A fresh server per scenario keeps state leaked by one scenario
+          # (and the memory it holds) away from the next one.
+          # shellcheck disable=SC2086
+          bench/run.sh --runtime docker --client container --restart-each \
+            --duration "${{ inputs.duration || '10' }}" \
+            --connections "${{ inputs.connections || '64' }}" \
+            --label ci \
+            ${{ inputs.scenarios }}
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f bench/results/ci/summary.md ]; then
+            cat bench/results/ci/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.ref_name }}
+          path: bench/results/ci
+          if-no-files-found: warn
+
+      - name: Record the release in the documentation
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          # bench/results/ is ignored by git, so it survives the switch to master.
+          git fetch origin master
+          git checkout -B master origin/master
+          python3 bench/report.py record bench/results/ci bench/history "$TAG"
+          python3 bench/report.py docs bench/history docs/benchmarks.md
+          git add bench/history docs/benchmarks.md
+          if git diff --cached --quiet; then
+            echo "nothing to record"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "Record benchmark results for $TAG [skip ci]"
+          git push origin HEAD:master
