@@ -129,14 +129,33 @@ context_authorize_via([ToolPath, HeaderName], Request) ->
   end;
 context_authorize_via(_, _) -> false.
 
+%% The tool reads the header value from stdin until EOF. An Erlang port has
+%% no half-close: port_close/1 would deliver the EOF but also drop the port,
+%% so its {exit_status, _} message can never arrive (the old code then waited
+%% the full timeout and the connection's keep-alive timer closed the socket).
+%% Instead the value is piped in by /bin/sh; it travels as an argv element,
+%% never through shell parsing, so header contents cannot inject commands.
 run_auth_tool(Cmd, Input) ->
-  Port = open_port({spawn, Cmd}, [binary, exit_status, use_stdio]),
-  port_command(Port, Input),
-  %% Close stdin so the tool knows no more data is coming
-  catch port_close(Port),
+  case os:find_executable("sh") of
+    false ->
+      logging:err("Authorization tool ~s cannot run: no sh in PATH", [Cmd]),
+      -1;
+    Sh ->
+      Port = open_port({spawn_executable, Sh},
+                       [{args, ["-c", "printf '%s' \"$1\" | exec \"$0\"", Cmd, Input]},
+                        binary, exit_status, use_stdio, stderr_to_stdout]),
+      wait_auth_tool(Port, Cmd)
+  end.
+
+%% Wait for the exit status, discarding whatever the tool prints so no
+%% port message is left behind in the connection handler's mailbox.
+wait_auth_tool(Port, Cmd) ->
   receive
-    {Port, exit_status, Status} -> Status
+    {Port, {exit_status, Status}} -> Status;
+    {Port, {data, _}} -> wait_auth_tool(Port, Cmd);
+    {'EXIT', Port, _} -> wait_auth_tool(Port, Cmd)
   after 5000 ->
     logging:err("Authorization tool ~s timed out", [Cmd]),
+    catch port_close(Port),
     -1
   end.
