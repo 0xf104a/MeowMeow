@@ -5,9 +5,15 @@
                                              summary.md and summary.json
     report.py compare BASE_DIR NEW_DIR       print a Markdown table of the
                                              change between two runs
+    report.py record RESULTS_DIR HISTORY_DIR TAG
+                                             keep the run's summary as
+                                             HISTORY_DIR/TAG.json
+    report.py docs HISTORY_DIR PAGE.md       write the documentation page
+                                             from every recorded release
 """
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 SKIP = {"meta.json", "summary.json"}
@@ -65,6 +71,7 @@ def rows(scenarios):
         after = data.get("vm_after") or {}
         out.append({
             "scenario": name,
+            "description": data.get("description", ""),
             "requests": w["requests"],
             "requests_per_sec": w["requests_per_sec"],
             "bytes_per_sec": w["bytes_per_sec"],
@@ -88,11 +95,11 @@ def table(header, lines):
     return "\n".join([fmt.format(*header), sep] + [fmt.format(*line) for line in lines])
 
 
-def summarize(directory):
-    meta, scenarios = load_run(directory)
-    data = rows(scenarios)
-    header = ["Scenario", "Req/s", "MiB/s", "p50 ms", "p90 ms", "p99 ms", "max ms",
-              "Red./req", "VM MiB", "Procs", "Errors"]
+SUMMARY_HEADER = ["Scenario", "Req/s", "MiB/s", "p50 ms", "p90 ms", "p99 ms", "max ms",
+                  "Red./req", "VM MiB", "Procs", "Errors"]
+
+
+def summary_lines(data):
     lines = []
     for r in data:
         err = ""
@@ -110,27 +117,125 @@ def summarize(directory):
             str(r["process_count"]) if r["process_count"] is not None else "-",
             err or "0",
         ])
+    return lines
 
+
+def facts(meta):
     host = meta.get("host", {})
     vm = meta.get("server_vm") or {}
-    title = f"# MeowMeow benchmark {meta.get('label', Path(directory).name)}"
-    facts = [
+    return [
         f"- Git: `{meta.get('git_sha', '?')}`{' (dirty)' if meta.get('git_dirty') else ''} on `{meta.get('git_branch', '?')}`, {meta.get('date', '?')}",
         f"- Load: {meta.get('duration_s', '?')} s per scenario, {meta.get('connections', '?')} connections, "
-        f"{meta.get('threads', '?')} wrk threads, warm-up {meta.get('warmup_s', '?')} s, client on {meta.get('client', '?')}",
+        f"{meta.get('threads', '?')} wrk threads, warm-up {meta.get('warmup_s', '?')} s, client on {meta.get('client', '?')}"
+        + (", fresh server per scenario" if meta.get("restart_each") else ""),
         f"- Server: OTP {vm.get('otp_release', '?')}, {vm.get('schedulers_online', '?')} schedulers, "
         f"LogLevel {meta.get('log_level', '?')}, {meta.get('runtime', '?')} with {meta.get('network', '?')} network"
         + (f", CPUs {meta['server_cpus']}" if meta.get("server_cpus") else ""),
         f"- Host: {host.get('cpu_model') or 'unknown CPU'}, {host.get('cpus', '?')} CPUs, {host.get('kernel', '?')}",
-        "",
-        "Latency columns are wrk's per-request latency. Red./req is the number of Erlang reductions "
-        "the server VM spent per request, a CPU cost proxy that does not depend on the load generator. "
-        "VM MiB and Procs are the VM's memory and process count right after the scenario.",
     ]
-    text = "\n".join([title, ""] + facts + ["", table(header, lines), ""])
+
+
+COLUMNS_NOTE = ("Latency columns are wrk's per-request latency. Red./req is the number of Erlang reductions "
+                "the server VM spent per request, a CPU cost proxy that does not depend on the load generator. "
+                "VM MiB and Procs are the VM's memory and process count right after the scenario.")
+
+
+def summarize(directory):
+    meta, scenarios = load_run(directory)
+    data = rows(scenarios)
+    title = f"# MeowMeow benchmark {meta.get('label', Path(directory).name)}"
+    text = "\n".join([title, ""] + facts(meta) + ["", COLUMNS_NOTE, "", table(SUMMARY_HEADER, summary_lines(data)), ""])
     print(text)
     (Path(directory) / "summary.md").write_text(text)
     (Path(directory) / "summary.json").write_text(json.dumps({"meta": meta, "scenarios": data}, indent=2) + "\n")
+
+
+def record(results_dir, history_dir, tag):
+    """Copies a run's summary into the history as <tag>.json."""
+    summary_file = Path(results_dir) / "summary.json"
+    if summary_file.exists():
+        summary = json.loads(summary_file.read_text())
+    else:
+        meta, scenarios = load_run(results_dir)
+        summary = {"meta": meta, "scenarios": rows(scenarios)}
+    summary["meta"]["tag"] = tag
+    history = Path(history_dir)
+    history.mkdir(parents=True, exist_ok=True)
+    target = history / f"{tag}.json"
+    target.write_text(json.dumps(summary, indent=2) + "\n")
+    print(f"recorded {tag} in {target}")
+
+
+def load_history(history_dir):
+    releases = []
+    for path in Path(history_dir).glob("*.json"):
+        summary = json.loads(path.read_text())
+        summary["meta"].setdefault("tag", path.stem)
+        releases.append(summary)
+    releases.sort(key=lambda s: (s["meta"].get("date", ""), s["meta"]["tag"]))
+    return releases
+
+
+def history_table(releases, scenario_names, key, fmt):
+    header = ["Scenario"] + [r["meta"]["tag"] for r in releases]
+    lines = []
+    for name in scenario_names:
+        line = [name]
+        for release in releases:
+            row = next((s for s in release["scenarios"] if s["scenario"] == name), None)
+            value = row.get(key) if row else None
+            line.append(fmt(value) if value is not None else "-")
+        lines.append(line)
+    return table(header, lines)
+
+
+MAX_RELEASES_IN_TABLES = 8
+
+
+def docs(history_dir, page):
+    """Writes the documentation page from the recorded releases."""
+    releases = load_history(history_dir)
+    out = [
+        "# Benchmark results",
+        "",
+        "Measured by the `Benchmark` workflow, which runs [`bench/run.sh`](development/benchmarking.md)",
+        "on a GitHub-hosted runner for every release tag and records the summary under",
+        "`bench/history/`. This page is generated from those files by",
+        "`python3 bench/report.py docs bench/history docs/benchmarks.md`; edit the generator,",
+        "not the page.",
+        "",
+        "Shared runners differ from run to run, so compare releases by the order of magnitude",
+        "and by `Red./req`, the reductions the server VM spent per request, which does not",
+        "depend on how busy the runner was. Throughput and latency are indicative only.",
+        "",
+    ]
+    if not releases:
+        out += ["No release has been benchmarked yet. The first tag pushed after the workflow",
+                "was added will fill this page.", ""]
+    else:
+        shown = releases[-MAX_RELEASES_IN_TABLES:]
+        names = [s["scenario"] for s in shown[-1]["scenarios"]]
+        for name in [s["scenario"] for r in shown for s in r["scenarios"]]:
+            if name not in names:
+                names.append(name)
+        out += ["## Throughput, requests per second", "",
+                history_table(shown, names, "requests_per_sec", lambda v: f"{v:,.0f}"), "",
+                "## Latency, 99th percentile in milliseconds", "",
+                history_table(shown, names, "p99_ms", lambda v: f"{v:.2f}"), "",
+                "## Reductions per request", "",
+                history_table(shown, names, "reductions_per_request", lambda v: f"{v:,.0f}"), ""]
+        if len(releases) > len(shown):
+            out += [f"Older releases ({', '.join(r['meta']['tag'] for r in releases[:-len(shown)])}) "
+                    "are kept in `bench/history/` but left out of the tables.", ""]
+        latest = releases[-1]
+        out += [f"## Latest release: {latest['meta']['tag']}", ""] + facts(latest["meta"]) + [
+            "", COLUMNS_NOTE, "", table(SUMMARY_HEADER, summary_lines(latest["scenarios"])), "",
+            "## Scenarios", "",
+            table(["Scenario", "Measures"],
+                  [[s["scenario"], s.get("description", "")] for s in latest["scenarios"]]), ""]
+    out += [f"*Generated on {date.today().isoformat()} from {len(releases)} recorded release(s).*", ""]
+    Path(page).write_text("\n".join(out))
+    print(f"wrote {page} from {len(releases)} release(s)")
 
 
 def delta(old, new, lower_is_better=False):
@@ -180,6 +285,10 @@ def main(argv):
         summarize(argv[2])
     elif len(argv) == 4 and argv[1] == "compare":
         compare(argv[2], argv[3])
+    elif len(argv) == 5 and argv[1] == "record":
+        record(argv[2], argv[3], argv[4])
+    elif len(argv) == 4 and argv[1] == "docs":
+        docs(argv[2], argv[3])
     else:
         sys.exit(__doc__.strip())
 

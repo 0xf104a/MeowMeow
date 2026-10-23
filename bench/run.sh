@@ -32,6 +32,7 @@ SERVER_CPUS=""
 CLIENT_CPUS=""
 BUILD=1
 KEEP=0
+RESTART_EACH=0
 RUNTIME="${CONTAINER_RUNTIME:-}"
 LOGLEVEL="${MEOW_LOGLEVEL:-1}"
 SELECTED=()
@@ -67,6 +68,9 @@ Options:
       --image NAME       image tag (default: $IMAGE)
       --no-build         reuse the existing image
       --keep             leave the server container running afterwards
+      --restart-each     start a fresh server for every scenario (on
+                         consecutive ports, see below) so that state left
+                         behind by one scenario cannot affect the next
       --list             list scenarios and exit
   -h, --help             this text
 EOF
@@ -92,6 +96,7 @@ while [ $# -gt 0 ]; do
     --image)          IMAGE=$2; shift 2 ;;
     --no-build)       BUILD=0; shift ;;
     --keep)           KEEP=1; shift ;;
+    --restart-each)   RESTART_EACH=1; shift ;;
     --list)
       awk -F'\t' '!/^#/ && NF {printf "%-14s %-18s %s\n", $1, $2, $6}' "$SCENARIOS_FILE"
       exit 0 ;;
@@ -221,27 +226,36 @@ fi
 
 # ------------------------------------------------------------------- start
 
-RUN_ARGS=(-d --name "$NAME" -e "MEOW_PORT=$PORT" -e "MEOW_LOGLEVEL=$LOGLEVEL")
-if [ "$NETWORK" = host ]; then
-  RUN_ARGS+=(--network host)
-else
-  RUN_ARGS+=(-p "127.0.0.1:$PORT:$PORT")
-fi
-[ -n "$SERVER_CPUS" ] && RUN_ARGS+=(--cpuset-cpus "$SERVER_CPUS")
-
-# The server binds without SO_REUSEADDR, so connections a previous run left
-# in TIME_WAIT on the host (conn_close produces thousands) make the bind fail.
-if [ "$NETWORK" = host ] && command -v ss >/dev/null 2>&1; then
-  lingering=$(ss -Htan "( sport = :$PORT )" 2>/dev/null | wc -l)
-  if [ "$lingering" -gt 0 ]; then
-    log "warning: $lingering sockets still use port $PORT (TIME_WAIT from a previous run?);"
-    log "         if the server fails to bind, wait a minute or pick another port with -p"
+# start_server PORT: (re)starts the server container listening on PORT and
+# waits until it answers. Sets URL_BASE for the client.
+start_server() {
+  local port=$1 lingering run_args
+  "$RUNTIME" rm -f "$NAME" >/dev/null 2>&1 || true
+  URL_BASE="http://127.0.0.1:$port"
+  run_args=(-d --name "$NAME" -e "MEOW_PORT=$port" -e "MEOW_LOGLEVEL=$LOGLEVEL")
+  if [ "$NETWORK" = host ]; then
+    run_args+=(--network host)
+  else
+    run_args+=(-p "127.0.0.1:$port:$port")
   fi
-fi
+  [ -n "$SERVER_CPUS" ] && run_args+=(--cpuset-cpus "$SERVER_CPUS")
 
-log "starting server container $NAME (network $NETWORK, port $PORT)"
-"$RUNTIME" run "${RUN_ARGS[@]}" "$IMAGE" serve >/dev/null
-wait_ready
+  # The server binds without SO_REUSEADDR, so connections a previous run left
+  # in TIME_WAIT on the host (conn_close produces thousands) make the bind fail.
+  if [ "$NETWORK" = host ] && command -v ss >/dev/null 2>&1; then
+    lingering=$(ss -Htan "( sport = :$port )" 2>/dev/null | wc -l)
+    if [ "$lingering" -gt 0 ]; then
+      log "warning: $lingering sockets still use port $port (TIME_WAIT from a previous run?);"
+      log "         if the server fails to bind, wait a minute or pick another port with -p"
+    fi
+  fi
+
+  log "starting server container $NAME (network $NETWORK, port $port)"
+  "$RUNTIME" run "${run_args[@]}" "$IMAGE" serve >/dev/null
+  wait_ready
+}
+
+start_server "$PORT"
 
 mkdir -p "$OUT_DIR"
 SERVER_VM=$(vm_stats)
@@ -265,6 +279,7 @@ cat > "$OUT_DIR/meta.json" <<EOF
   "connections": $CONNECTIONS,
   "threads": $THREADS,
   "log_level": $LOGLEVEL,
+  "restart_each": $([ "$RESTART_EACH" = 1 ] && echo true || echo false),
   "host": {
     "kernel": $(json_str "$(uname -sr)"),
     "cpus": $(nproc 2>/dev/null || echo 0),
@@ -292,6 +307,11 @@ while IFS=$'\t' read -r name path expect headers extra description; do
   fi
 
   printf '\n== %s: %s\n' "$name" "$description" >&2
+  # A fresh server per scenario. Each one gets its own port because the
+  # previous server's TIME_WAIT sockets would make a bind to the same port fail.
+  if [ "$RESTART_EACH" = 1 ] && [ "$ORDER" -gt 1 ]; then
+    start_server $((PORT + ORDER - 1))
+  fi
   if [ "$WARMUP" -gt 0 ]; then
     run_wrk "$WARMUP" "$path" "$headers" "$expect" "$extra" >/dev/null 2>&1 || true
   fi

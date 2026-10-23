@@ -45,3 +45,13 @@ suffix (`2.0`) does **not** trigger it.
 Read the Docs builds the `latest` version from `master` on every push and
 can be configured to build tagged versions too. Enable the tag under
 *Versions* in the Read the Docs project after pushing it.
+
+## 6. Benchmarks
+
+The same tag also triggers the `Benchmark` workflow. It load-tests the
+tagged commit, stores the summary as `bench/history/<tag>.json`, regenerates
+`docs/benchmarks.md` and commits both to `master` as `github-actions[bot]`
+(the commit carries `[skip ci]`). Pull `master` afterwards before you push
+anything else, and see [Benchmarking](benchmarking.md) for what the numbers
+mean. The tagged documentation version itself does not contain its own
+results; only `latest` does.

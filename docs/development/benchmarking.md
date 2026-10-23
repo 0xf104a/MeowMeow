@@ -85,9 +85,24 @@ publishes the port instead, which measures the runtime's port forwarder as
 much as the server and is only there for hosts that cannot use the host
 network.
 
-## In CI
+## In CI and in the documentation
 
 The `Benchmark` workflow (`.github/workflows/benchmark.yml`) runs the harness
-on demand from the Actions tab, prints the table in the job summary and
-uploads the results directory as an artifact. Shared runners are noisy, so
-treat those numbers as a smoke test rather than a measurement.
+on a GitHub-hosted runner with a fresh server per scenario
+(`--restart-each`), prints the table in the job summary and uploads the
+results directory as an artifact. It runs on demand from the Actions tab and
+on every release tag.
+
+On a tag it also records the run: the summary is stored as
+`bench/history/<tag>.json`, the [Benchmark results](../benchmarks.md) page is
+regenerated from every recorded release, and both are committed to `master`
+by the workflow, which Read the Docs then rebuilds as `latest`. The page is
+generated, so edit `report.py` rather than the page:
+
+```bash
+python3 bench/report.py record bench/results/<label> bench/history <tag>
+python3 bench/report.py docs bench/history docs/benchmarks.md
+```
+
+Shared runners are noisy, so treat those numbers as a smoke test and a trend
+rather than a measurement; `Red./req` is the column that stays comparable.
