@@ -1,0 +1,6 @@
+# Test users credentials file for authorization module
+# Format: username:password
+
+admin:secret123
+alice:wonderland
+bob:builder

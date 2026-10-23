@@ -77,11 +77,13 @@ load_credentials(FilePath) ->
 
 %% Returns true if given base64 token corresponds to any "username:password" line
 validate_bearer(TokenB64, Creds) ->
-  case base64:decode(TokenB64) of
+  try base64:decode(TokenB64) of
     Decoded when is_binary(Decoded) ->
       Str = binary_to_list(Decoded),
       lists:member(Str, Creds);
     _ -> false
+  catch
+    _:_ -> false
   end.
 
 %% Accept both Bearer and Basic schemes for convenience, but Bearer is primary per spec
