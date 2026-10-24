@@ -39,7 +39,7 @@ spawn_call(Req) ->
 
 mcp_single_test_() ->
   {setup, fun setup/0, fun cleanup/1,
-   fun(_) -> [dispatch_tests(), flow_tests()] end}.
+   fun(_) -> [dispatch_tests(), flow_tests(), limit_tests()] end}.
 
 dispatch_tests() ->
   [{"an unsupported method is a 405",
@@ -132,3 +132,35 @@ flow_tests() ->
        [{<<"/owner">>, Session}] = ets:lookup(?ROUTE_TABLE, <<"/owner">>),
        ok = mcp_server:terminate_session(maps:get(pid, Session))
      end)}}].
+
+%%--------------------------------------------------------------------
+%% Session caps (issue #22)
+%%--------------------------------------------------------------------
+limit_tests() ->
+  Init = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
+  [{"POST that would create the route's session answers 503 when no slot is free and records no session",
+    {timeout, 15, ?_test(begin
+       test_support:cleanup_mcp_sessions(),   %% earlier tests leave sessions running
+       ok = mcp_single:init_table(),
+       test_support:set_config("MCPMaxSessions", "1"),
+       test_support:set_config("MCPSessionWaitMs", "0"),
+       Id = mcp_port:start_mcp_session(cat(), 5000),
+       {ok, Pid} = mcp_port:get_mcp_session_by_id(Id),
+       try
+         {ready2send, R} = call(json_post("/busy", Init)),
+         ?assertEqual(503, R#response.code),
+         ?assertEqual("1", maps:get("Retry-After", R#response.headers)),
+         ?assertEqual([], ets:lookup(?ROUTE_TABLE, <<"/busy">>)),
+         {ready2send, R2} = call(test_support:request("GET", "/busy", [{"Host", "h"}])),
+         ?assertEqual(503, R2#response.code)
+       after
+         catch mcp_server:terminate_session(Pid),
+         test_support:set_config("MCPMaxSessions", "0"),
+         test_support:set_config("MCPSessionWaitMs", "5000"),
+         catch mcp_admission:stop()
+       end
+     end)}},
+   {"a misconfigured rule answers 500",
+    ?_assertEqual({aborted, 500},
+                  mcp_single:rule_mcp_sse_single_call([cat()],
+                                                      test_support:response_for(json_post("/x", Init))))}].

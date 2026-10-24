@@ -11,16 +11,22 @@ LoadModules static,header,route,env,mcp
 ```
 
 Three transports are available, each as a terminal rule that takes the same
-two arguments:
+arguments:
 
 ```text
-Rule "COMMAND" KEEPALIVE_MS
+Rule "COMMAND" KEEPALIVE_MS [MaxSessions=N] [MemoryLimit=SIZE]
 ```
 
 | Argument | Meaning |
 |----------|---------|
 | `COMMAND` | Command line that starts the tool. Quote it when it has spaces. The executable is looked up on the server's `PATH`. |
 | `KEEPALIVE_MS` | Idle time in milliseconds after which a session's subprocess is terminated. |
+| `MaxSessions=N` | Optional. At most `N` live sessions started with this command, across every route that uses it. `0` disables the rule. See [Session caps](#session-caps). |
+| `MemoryLimit=SIZE` | Optional. Memory the session's process tree may use, e.g. `256M`, `2G` or a number of bytes; `0` means no limit. Overrides `MCPMemoryLimit` from `meow.conf`. See [Memory limits](#memory-limits). |
+
+Option names are not case-sensitive. A rule with a non-numeric keep-alive,
+an unknown option or a bad option value answers every request with `500`
+and logs the problem.
 
 ## `MCP-Tool-Streamable`
 
@@ -48,6 +54,7 @@ Requirements and the status codes returned when they are not met:
 | Condition | Status |
 |-----------|--------|
 | `Mcp-Protocol-Version` header missing or older than `2025-11-25` | `501` |
+| `initialize` while no session slot is free (see [Session caps](#session-caps)) | `503` with `Retry-After` |
 | `POST` without a session that is not an `initialize` request | `400` |
 | `POST` whose `Content-Type` is not `application/json` | `415` |
 | `initialize` request without an `id` | `422` |
@@ -81,7 +88,8 @@ End
 | `DELETE /sse?sessionId=<id>` | Terminates the session, `204`. |
 
 `POST` without `sessionId` is `400`, a non-JSON `Content-Type` is `415`, an
-unknown session is `404`, other methods are `405`.
+unknown session is `404`, other methods are `405`. `GET /sse` while no
+session slot is free is `503` with `Retry-After` instead of a stream.
 
 ## `MCP-Tool-SSE-Single`
 
@@ -98,6 +106,7 @@ End
 - `GET` opens the stream, creating the route's session if none exists.
 - `POST` forwards the body to the route's session, creating it if needed, and returns `202`.
 - `DELETE` terminates the route's session.
+- A `GET` or `POST` that would have to create the session while no session slot is free answers `503` with `Retry-After`.
 
 Every client of the route talks to the same subprocess and sees the same
 stream, so use it only behind a single trusted client.
@@ -107,6 +116,90 @@ stream, so use it only behind a single trusted client.
 - Each session owns one subprocess, started with the configured command. Its standard output is read line by line; every complete line is a JSON-RPC message delivered to the connected client(s).
 - A session is terminated when the client deletes it, when the subprocess exits, or after `KEEPALIVE_MS` of inactivity. Terminated sessions answer `404` afterwards and the client must initialise again.
 - Session ids are 64 random bytes, so they are safe to use as the only credential *of a session*, but they do not protect the endpoint itself.
+
+## Session caps
+
+Every session is a subprocess, and nothing stops a busy or hostile client
+from starting more of them than the host can hold. Two caps bound that:
+
+| Setting | Scope | Meaning |
+|---------|-------|---------|
+| `MCPMaxSessions N` in `meow.conf` | whole server | At most `N` live sessions over all tools and routes. `0` (the default) means no cap. |
+| `MaxSessions=N` on a rule | one command | At most `N` live sessions started with that command. |
+
+A session counts from the moment its subprocess starts until it ends for any
+reason: `DELETE`, keep-alive expiry, the tool exiting, or a memory limit.
+
+When a request needs a new session and no slot is free it **waits** up to
+`MCPSessionWaitMs` (default `5000`) for one to be released, holding its
+connection open. At most as many requests wait as the cap allows to run;
+beyond that, and when the wait runs out, the request is answered with
+`503 Service Unavailable` and a `Retry-After` header (the wait time in
+seconds, at least `1`). Set `MCPSessionWaitMs 0` to refuse immediately.
+
+```text
+# meow.conf
+MCPMaxSessions 8
+MCPSessionWaitMs 3000
+```
+
+```text
+# routes.conf
+Route /mcp
+ MCP-Tool-Streamable "npx -y @modelcontextprotocol/server-filesystem /data" 60000 MaxSessions=2
+End
+```
+
+Caps are checked by one process, so they hold under concurrent requests.
+Waiting requests are served oldest first; one whose command is still at its
+own `MaxSessions` is skipped in favour of a younger one that fits.
+
+## Memory limits
+
+Each session's whole process tree is metered, not only the process the
+server started: a tool launched as `npx ...` is a shell, a Node process
+and whatever that forks. `MemoryLimit=SIZE` on the rule, or
+`MCPMemoryLimit` in `meow.conf` as the default for every rule, caps that
+tree. A session over its limit is terminated and connected clients see the
+stream end (`504` on a pending Streamable request); the log says which tool
+and how much.
+
+How the tree is metered and the limit enforced depends on what the host
+offers:
+
+| Backend | When | Enforcement |
+|---------|------|-------------|
+| **cgroup** | cgroup v2 with the `memory` controller is writable at the server's own cgroup. In a container running as root this is the normal case (Docker with its default private cgroup namespace, Podman with crun). | The kernel enforces the limit (`memory.max`). Every session gets its own cgroup, joined before the tool is started, so even daemonised descendants are covered and `cgroup.kill` ends them all. |
+| **proc** | Anything else, or `MCPCgroup No`. | The server sums the resident set sizes of the tree it finds under the tool's pid in `/proc` every `MCPMemoryPollMs` (default `1000`) and kills the tree when a sample is over the limit. Short bursts between samples and processes that re-parent to init escape it, and shared pages are counted once per process, so give the limit some headroom. |
+
+The backend is chosen once at startup and logged at `LogLevel 3`.
+`MCPCgroupRoot` points the cgroup backend at a directory other than the one
+read from `/proc/self/cgroup`, for unusual setups.
+
+```text
+# meow.conf
+MCPMemoryLimit 512M      # default for every MCP-Tool-* rule
+MCPMemoryPollMs 1000
+MCPCgroup Yes
+```
+
+```text
+# routes.conf
+Route /mcp
+ MCP-Tool-Streamable "/opt/tools/bin/weather-mcp" 60000 MemoryLimit=128M
+End
+```
+
+!!! note "cgroup setup"
+    To enable the memory controller for per-session cgroups, cgroup v2
+    requires the server's own cgroup to have no member processes. On startup
+    the server therefore moves the processes it finds there (itself) into a
+    `meowmeow-main` child cgroup and creates sessions under `meowmeow-mcp`.
+    Both live inside the cgroup the server was started in, so container
+    limits set from outside still apply to everything.
+
+Whatever the backend, terminating a session now kills the tool's whole
+process tree instead of only its first process.
 
 ## Securing the endpoint
 
@@ -128,7 +221,7 @@ and terminate TLS in a reverse proxy. Keep in mind that whoever can edit
 ## Limits that matter
 
 - Request bodies go through the normal `POST` checks: `Content-Length` is required (`411`) and must not exceed `MaxPostSize` (`413`, default 10 KiB). Raise `MaxPostSize` in `meow.conf` for tools with large arguments.
-- One subprocess per session: a busy public endpoint can start many processes. Pick `KEEPALIVE_MS` accordingly.
+- One subprocess per session: a busy public endpoint can start many processes. Pick `KEEPALIVE_MS` accordingly and set [session caps](#session-caps) and [memory limits](#memory-limits).
 - Tool output must be newline-delimited JSON-RPC, one message per line, which is what stdio MCP servers produce.
 
 ## Trying it out

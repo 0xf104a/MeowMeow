@@ -25,12 +25,19 @@ mcp_request_state(Request) ->
   ContentType = parse_http:media_type(parse_http:get_header("Content-Type", Request, none)),
   {AcceptHeader, MCPVersion, MCPSessionID, IsInitializeRequest, ContentType}.
 
-handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
+handle_mcp_session_init(Response, Tool, KeepAliveMs, Opts, DecodedRequest) ->
   RequestId = maps:get(<<"id">>, DecodedRequest, none),
   case RequestId of
     none -> {aborted, 422};
     _ ->
-      MCPSessionID = mcp_port:start_mcp_session(Tool, KeepAliveMs),
+      case mcp_port:start_mcp_session(Tool, KeepAliveMs, Opts) of
+        {error, busy} -> mcp_options:busy_response(Response, mcp_options:session_opts(Opts));
+        {error, _} -> {aborted, 502};
+        {ok, MCPSessionID} -> start_session_stream(Response, MCPSessionID, RequestId)
+      end
+  end.
+
+start_session_stream(Response, MCPSessionID, RequestId) ->
       {ok, SessionPid} = mcp_port:get_mcp_session_by_id(MCPSessionID),
 
       logging:debug("New SessionPid ~p", [SessionPid]),
@@ -45,8 +52,7 @@ handle_mcp_session_init(Response, Tool, KeepAliveMs, DecodedRequest) ->
         headers = maps:merge(Response#response.headers,
           #{"Content-Type" => "application/json", "MCP-Session-Id" => binary_to_list(MCPSessionID)}
         )},
-        RequestId)
-  end.
+        RequestId).
 
 wait_for_sse(SessionPid, Response, RequestID) ->
   receive
@@ -132,15 +138,14 @@ rule_mcp_call(<<"POST">>, _, {_, _, MCPSessionID, IsInitializeRequest, _}, _)
   when MCPSessionID == none, not IsInitializeRequest -> {aborted, 400};
 rule_mcp_call(<<"POST">>, _, {_, _, _, _, ContentType}, _)
   when ContentType /= "application/json" -> {aborted, 415};
-rule_mcp_call(<<"POST">>, [Tool, KeepAliveMs], {_, _, _, IsInitializeRequest, _}, Response)
+rule_mcp_call(<<"POST">>, {Tool, KeepAliveMs, Opts}, {_, _, _, IsInitializeRequest, _}, Response)
   when IsInitializeRequest ->
   {ok, ResponseWithFullRequest} = handle:handle_body_recv(Response),
   %%logging:debug("~p", [ResponseWithFullRequest]),
   DecodedRequest = json:decode(ResponseWithFullRequest#response.request#request.body),
-  handle_mcp_session_init(ResponseWithFullRequest, Tool,
-    list_to_integer(KeepAliveMs), DecodedRequest);
+  handle_mcp_session_init(ResponseWithFullRequest, Tool, KeepAliveMs, Opts, DecodedRequest);
 
-rule_mcp_call(<<"POST">>, [_, _], {_, _, MCPSessionID, _, _}, Response) ->
+rule_mcp_call(<<"POST">>, _, {_, _, MCPSessionID, _, _}, Response) ->
   case mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)) of
     none ->
       logging:warn("MCP session ID ~p not found", [MCPSessionID]),
@@ -179,6 +184,8 @@ rule_mcp_call(Method, _, _, _) ->
 
 rule_mcp_streamable_call(Args, Response) ->
   Method = Response#response.request#request.method,
-
-  rule_mcp_call(Method, Args,
-    mcp_request_state(Response#response.request), Response).
+  mcp_options:with_rule_args(Args,
+    fun(Tool, KeepAliveMs, Opts) ->
+      rule_mcp_call(Method, {Tool, KeepAliveMs, Opts},
+        mcp_request_state(Response#response.request), Response)
+    end).

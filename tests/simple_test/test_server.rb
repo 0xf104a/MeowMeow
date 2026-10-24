@@ -11,15 +11,17 @@ else
 end
 
 module Tests
+  # vsn.txt holds the bare release version; the server appends the commit it
+  # was built from: MeowMeow/<version>.<sha>[.dirty] (see scripts/git_vsn.sh).
   def self.get_vsn
       vsn = File.read(File.join($testroot, "vsn.txt"))
       "MeowMeow/"+vsn.strip
   end
-  
+
   def self.test_server_header
       r = TestHTTP::get("http://localhost")
-      vsn = self.get_vsn
-      r.headers["Server"] == vsn.strip
+      vsn = Regexp.escape(self.get_vsn)
+      !(r.headers["Server"] =~ /\A#{vsn}\.(?:[0-9a-f]+|unknown)(\.dirty)?\z/).nil?
   end
 
   def self.test_big_file

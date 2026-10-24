@@ -16,12 +16,14 @@ RUN git clone https://github.com/0xf104a/SimpleTest
 WORKDIR /testroot/SimpleTest/
 RUN bundle install
 
-# Build
-RUN mkdir /buildroot
+# Build (GIT_SHA/GIT_DIRTY feed scripts/git_vsn.sh, there is no .git here)
+ARG GIT_SHA=unknown
+ARG GIT_DIRTY=
 WORKDIR /buildroot
-COPY src src
-COPY include include
 COPY rebar.config rebar.config
+COPY scripts scripts
+COPY include include
+COPY src src
 RUN rebar3 as prod release
 
 # Installation

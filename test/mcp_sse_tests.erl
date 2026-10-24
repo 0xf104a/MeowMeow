@@ -46,7 +46,7 @@ new_session() ->
 
 mcp_sse_test_() ->
   {setup, fun setup/0, fun cleanup/1,
-   fun(_) -> [pure_tests(), dispatch_tests(), flow_tests()] end}.
+   fun(_) -> [pure_tests(), dispatch_tests(), flow_tests(), limit_tests()] end}.
 
 %%--------------------------------------------------------------------
 pure_tests() ->
@@ -152,3 +152,32 @@ flow_tests() ->
        ?assertEqual(<<>>, R#response.body),
        ?assert(test_support:wait_until(fun() -> not is_process_alive(Pid) end, 2000))
      end)}}].
+
+%%--------------------------------------------------------------------
+%% Session caps (issue #22)
+%%--------------------------------------------------------------------
+limit_tests() ->
+  [{"GET without a session answers 503 with Retry-After instead of opening a stream when no slot is free",
+    {timeout, 15, ?_test(begin
+       test_support:cleanup_mcp_sessions(),   %% earlier tests leave sessions running
+       test_support:set_config("MCPMaxSessions", "1"),
+       test_support:set_config("MCPSessionWaitMs", "0"),
+       {_, Pid} = new_session(),
+       try
+         test_support:flush(),
+         {ready2send, R} = call(test_support:request("GET", "/sse", [{"Host", "h"}])),
+         ?assertEqual(503, R#response.code),
+         ?assertEqual("1", maps:get("Retry-After", R#response.headers)),
+         %% nothing was written to the socket by the rule itself
+         ?assertEqual([], test_support:collect(100))
+       after
+         catch mcp_server:terminate_session(Pid),
+         test_support:set_config("MCPMaxSessions", "0"),
+         test_support:set_config("MCPSessionWaitMs", "5000"),
+         catch mcp_admission:stop()
+       end
+     end)}},
+   {"a misconfigured rule answers 500",
+    ?_assertEqual({aborted, 500},
+                  mcp_sse:rule_mcp_sse_call([cat(), "5000", "nonsense"],
+                                            test_support:response_for(test_support:request("GET", "/sse", [{"Host", "h"}]))))}].

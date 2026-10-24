@@ -39,7 +39,24 @@ id_tests() ->
     ?_assertNotEqual(mcp_port:generate_session_id(), mcp_port:generate_session_id())}].
 
 session_tests() ->
-  [{"start_mcp_session/2 starts the tool and registers it under a new id",
+  [{"start_mcp_session/3 returns {ok, Id} and {error, busy} once the caps are reached",
+    {timeout, 10, ?_test(begin
+       test_support:set_config("MCPMaxSessions", "1"),
+       test_support:set_config("MCPSessionWaitMs", "0"),
+       try
+         {ok, Id} = mcp_port:start_mcp_session(cat(), 5000, #{}),
+         ?assert(is_binary(Id)),
+         {ok, Pid} = mcp_port:get_mcp_session_by_id(Id),
+         ?assertEqual({error, busy}, mcp_port:start_mcp_session(cat(), 5000, #{})),
+         ok = mcp_port:terminate_mcp_session(Id),
+         ?assertNot(is_process_alive(Pid))
+       after
+         test_support:set_config("MCPMaxSessions", "0"),
+         test_support:set_config("MCPSessionWaitMs", "5000"),
+         catch mcp_admission:stop()
+       end
+     end)}},
+   {"start_mcp_session/2 starts the tool and registers it under a new id",
     {timeout, 10, ?_test(begin
        Id = mcp_port:start_mcp_session(cat(), 5000),
        ?assert(is_binary(Id)),

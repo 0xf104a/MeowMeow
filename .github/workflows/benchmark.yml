@@ -2,7 +2,7 @@ name: Benchmark
 
 # Runs bench/run.sh on a GitHub-hosted runner.
 #
-#  * On every release tag (same glob as the Docker workflow) the summary is
+#  * On every release tag (same glob as the CI workflow) the summary is
 #    recorded as bench/history/<tag>.json, docs/benchmarks.md is regenerated
 #    from the whole history and both are committed to master, which Read the
 #    Docs then rebuilds as "latest".

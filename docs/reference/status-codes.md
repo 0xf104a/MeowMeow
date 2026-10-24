@@ -18,9 +18,10 @@ Which HTTP status MeowMeow sends on its own, and why. Statuses chosen in
 | `413 Payload Too Large` | `Content-Length` exceeds `MaxPostSize`. |
 | `415 Unsupported Media Type` | `mcp`: `POST` whose `Content-Type` is not `application/json`. |
 | `422 Unprocessable Content` | `MCP-Tool-Streamable`: `initialize` request without a JSON-RPC `id`. |
-| `500 Internal Server Error` | A directive in the rule table has no handler (should not happen after a successful start); `Send-File` could not stat its file. |
+| `500 Internal Server Error` | A directive in the rule table has no handler (should not happen after a successful start); `Send-File` could not stat its file; an `MCP-Tool-*` rule has a bad keep-alive or option. |
 | `501 Not Implemented` | `MCP-Tool-Streamable`: `Mcp-Protocol-Version` missing or older than `2025-11-25`. |
-| `502 Bad Gateway` | A rule crashed or returned an unexpected value; the error and stack trace are logged. |
+| `502 Bad Gateway` | A rule crashed or returned an unexpected value; the error and stack trace are logged; `mcp`: the tool's subprocess could not be started. |
+| `503 Service Unavailable` | `mcp`: a new session was needed but `MCPMaxSessions` or the rule's `MaxSessions` left no slot within `MCPSessionWaitMs`. Carries `Retry-After`. |
 | `504 Gateway Timeout` | `mcp`: the tool's subprocess ended while a response was awaited. |
 | `505 HTTP Version Not Supported` | HTTP/1.0 request while `AllowLegacyHttp` is `No`. |
 

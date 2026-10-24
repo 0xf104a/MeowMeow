@@ -8,7 +8,7 @@
 -module(handle).
 -author("f104a").
 -export([abort/1, close_connection/2, set_keepalive/1,
-  handler_start/1, get_ua/1, abort/2, log_response/2, handle_body_recv/1]).
+  handler_start/1, get_ua/1, abort/2, log_response/2, handle_body_recv/1, get_abort_body/1]).
 -import(response, [response/3, get_desc/1, set_header/3]).
 -import(parse_http, [http2map/1, mime_by_fname/1, is_close/1]).
 -import(util, [get_time/0]).

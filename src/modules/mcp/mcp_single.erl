@@ -42,32 +42,33 @@ init_table() ->
 get_route(Request) ->
   Request#request.route.
 
-new_session(Route, Tool, KeepAliveMs) ->
-  MCPSessionID = mcp_port:start_mcp_session(
-    Tool,
-    list_to_integer(KeepAliveMs)
-  ),
-  {ok, Pid} = mcp_port:get_mcp_session_by_id(MCPSessionID),
+new_session(Route, Tool, KeepAliveMs, Opts) ->
+  case mcp_port:start_mcp_session(Tool, KeepAliveMs, Opts) of
+    {ok, MCPSessionID} ->
+      {ok, Pid} = mcp_port:get_mcp_session_by_id(MCPSessionID),
+      Session = #{ pid => Pid, initialized => false, init_response => <<>> },
+      ets:insert(?ROUTE_TABLE, {Route, Session}),
+      {ok, Session};
+    {error, _} = Error ->
+      Error
+  end.
 
-  Session = #{ pid => Pid, initialized => false, init_response => <<>> },
-  ets:insert(?ROUTE_TABLE, {Route, Session}),
-  Session.
-
-get_or_create_session(Route, Tool, KeepAliveMs) ->
+%% @doc The route's live session, or a new one: {ok, Session} | {error, busy | term()}.
+get_or_create_session(Route, Tool, KeepAliveMs, Opts) ->
   case ets:lookup(?ROUTE_TABLE, Route) of
     [{Route, Session}] ->
       Pid = maps:get(pid, Session),
       IsAlive = erlang:is_process_alive(Pid),
       logging:debug("IsAlive(Pid ~p)=~p", [Pid, IsAlive]),
       case IsAlive of
-        true -> Session;
+        true -> {ok, Session};
         _ ->
           logging:debug("Will create new session for tool ~p", [Tool]),
-          new_session(Route, Tool, KeepAliveMs)
+          new_session(Route, Tool, KeepAliveMs, Opts)
       end;
     [] ->
       logging:debug("No session for route ~p,  will start ~p", [Route, Tool]),
-      new_session(Route, Tool, KeepAliveMs)
+      new_session(Route, Tool, KeepAliveMs, Opts)
   end.
 
 update_session(Route, Session) ->
@@ -76,16 +77,21 @@ update_session(Route, Session) ->
 delete_session(Route) ->
   ets:delete(?ROUTE_TABLE, Route).
 
-handle_sse_open_single(Response, Tool, KeepAliveMs) ->
+handle_sse_open_single(Response, Tool, KeepAliveMs, Opts) ->
   init_table(),
 
   Request = Response#response.request,
   Route = get_route(Request),
 
-  Session = get_or_create_session(Route, Tool, KeepAliveMs),
+  case get_or_create_session(Route, Tool, KeepAliveMs, Opts) of
+    {error, busy} -> mcp_options:busy_response(Response, mcp_options:session_opts(Opts));
+    {error, _} -> {aborted, 502};
+    {ok, Session} -> open_single_stream(Response, Request, Session)
+  end.
+
+open_single_stream(Response, Request, Session) ->
   logging:debug("Got session: ~p", [Session]),
   SessionPid = maps:get(pid, Session),
-
   Upstream = Response#response.upstream,
   Upstream ! cancel_tmr,
 
@@ -104,16 +110,21 @@ handle_sse_open_single(Response, Tool, KeepAliveMs) ->
   {sent, Response}.
 
 
-handle_post_single(Response, Tool, KeepAliveMs) ->
+handle_post_single(Response, Tool, KeepAliveMs, Opts) ->
   init_table(),
 
   {ok, ResponseWithBody} = handle:handle_body_recv(Response),
   Request = ResponseWithBody#response.request,
   Route = get_route(Request),
 
-  Body = Request#request.body,
+  case get_or_create_session(Route, Tool, KeepAliveMs, Opts) of
+    {error, busy} -> mcp_options:busy_response(ResponseWithBody, mcp_options:session_opts(Opts));
+    {error, _} -> {aborted, 502};
+    {ok, Session} -> forward_single_post(ResponseWithBody, Route, Session)
+  end.
 
-  Session = get_or_create_session(Route, Tool, KeepAliveMs),
+forward_single_post(ResponseWithBody, Route, Session) ->
+  Body = ResponseWithBody#response.request#request.body,
   SessionPid = maps:get(pid, Session),
   Initialized = maps:get(initialized, Session),
 
@@ -157,11 +168,11 @@ handle_delete_single(Response) ->
       {ready2send, Response#response{body = <<>>, code = 204}}
   end.
 
-rule_mcp_sse_single(<<"GET">>, [Tool, KeepAliveMs], _, Response) ->
-  handle_sse_open_single(Response, Tool, KeepAliveMs);
+rule_mcp_sse_single(<<"GET">>, {Tool, KeepAliveMs, Opts}, _, Response) ->
+  handle_sse_open_single(Response, Tool, KeepAliveMs, Opts);
 
-rule_mcp_sse_single(<<"POST">>, [Tool, KeepAliveMs], _, Response) ->
-  handle_post_single(Response, Tool, KeepAliveMs);
+rule_mcp_sse_single(<<"POST">>, {Tool, KeepAliveMs, Opts}, _, Response) ->
+  handle_post_single(Response, Tool, KeepAliveMs, Opts);
 
 rule_mcp_sse_single(<<"DELETE">>, _, _, Response) ->
   handle_delete_single(Response);
@@ -172,6 +183,9 @@ rule_mcp_sse_single(Method, _, _, _) ->
 
 rule_mcp_sse_single_call(Args, Response) ->
   Method = Response#response.request#request.method,
-  rule_mcp_sse_single(Method, Args,
-    mcp_sse:mcp_request_state(Response#response.request), Response).
+  mcp_options:with_rule_args(Args,
+    fun(Tool, KeepAliveMs, Opts) ->
+      rule_mcp_sse_single(Method, {Tool, KeepAliveMs, Opts},
+        mcp_sse:mcp_request_state(Response#response.request), Response)
+    end).
 

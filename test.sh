@@ -16,7 +16,10 @@ if [[ "${1:-}" != "--skip-eunit" ]]; then
 fi
 
 echo "=> Building E2E test image"
-docker build -t test.meow.meow -f tests/Dockerfile .
+GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+GIT_DIRTY=$(git diff --quiet HEAD -- 2>/dev/null || echo dirty)
+docker build -t test.meow.meow -f tests/Dockerfile \
+  --build-arg "GIT_SHA=$GIT_SHA" --build-arg "GIT_DIRTY=$GIT_DIRTY" .
 if [[ $? != 0 ]]; then
    echo "Failed to build test image"
    exit 1

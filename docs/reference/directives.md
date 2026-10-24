@@ -13,6 +13,12 @@ response and stop evaluation; *context* rules open a block closed by `End`.
 | `KeepAlive` | milliseconds | `10000` | Idle timeout of a keep-alive connection. |
 | `AllowLegacyHttp` | `Yes`/`No` | `No` | Accept HTTP/1.0 requests instead of answering `505`. |
 | `MaxPostSize` | bytes | `10240` | Largest accepted request body. |
+| `MCPMaxSessions` | count | `0` | Live MCP sessions over all tools; `0` = no cap. |
+| `MCPSessionWaitMs` | milliseconds | `5000` | Wait for a free session slot before `503`. |
+| `MCPMemoryLimit` | size (`512M`) | `0` | Default memory limit of an MCP session's process tree. |
+| `MCPMemoryPollMs` | milliseconds | `1000` | Memory sampling period of MCP sessions. |
+| `MCPCgroup` | `Yes`/`No` | `Yes` | Use per-session cgroups when the host allows it. |
+| `MCPCgroupRoot` | path | empty | Cgroup directory to create session cgroups under. |
 | `LoadModules` | `a,b,c` | none | Modules to load, in order. |
 
 Details: [Server configuration](../configuration/server.md).
@@ -48,9 +54,12 @@ Details: [Server configuration](../configuration/server.md).
 | `If-Env-Def VAR` | `env` | context | Variable set. |
 | `DocDir DIR` | `static` | terminal | Serve the request path from `DIR` (`index.html` for directories). |
 | `Send-File PATH` | `static` | terminal | Serve `PATH`. |
-| `MCP-Tool-Streamable "CMD" MS` | `mcp` | terminal | Streamable HTTP transport for the stdio MCP tool `CMD`; sessions idle out after `MS` ms. |
-| `MCP-Tool-SSE "CMD" MS` | `mcp` | terminal | Legacy SSE transport. |
-| `MCP-Tool-SSE-Single "CMD" MS` | `mcp` | terminal | SSE transport with one session per route. |
+| `MCP-Tool-Streamable "CMD" MS [OPTS]` | `mcp` | terminal | Streamable HTTP transport for the stdio MCP tool `CMD`; sessions idle out after `MS` ms. |
+| `MCP-Tool-SSE "CMD" MS [OPTS]` | `mcp` | terminal | Legacy SSE transport. |
+| `MCP-Tool-SSE-Single "CMD" MS [OPTS]` | `mcp` | terminal | SSE transport with one session per route. |
+
+`OPTS` of the `MCP-Tool-*` rules: `MaxSessions=N` (live sessions of `CMD`)
+and `MemoryLimit=SIZE` (per-session memory, e.g. `256M`).
 
 Wildcards: `*` any characters, `?` one character, anchored at both ends.
 

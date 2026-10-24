@@ -54,7 +54,7 @@ new_session() ->
 
 mcp_streamable_test_() ->
   {setup, fun setup/0, fun cleanup/1,
-   fun(_) -> [state_tests(), dispatch_tests(), flow_tests()] end}.
+   fun(_) -> [state_tests(), dispatch_tests(), flow_tests(), limit_tests()] end}.
 
 %%--------------------------------------------------------------------
 state_tests() ->
@@ -193,3 +193,61 @@ flow_tests() ->
          catch mcp_server:terminate_session(Pid)
        end
      end)}}].
+
+%%--------------------------------------------------------------------
+%% Session caps (issue #22): no slot -> 503 with Retry-After, misconfigured rule -> 500
+%%--------------------------------------------------------------------
+call(Args, Req) ->
+  Upstream = test_support:spawn_collector(),
+  try
+    mcp_streamable:rule_mcp_streamable_call(Args, test_support:response_for(Req, Upstream))
+  after
+    test_support:stop_collector(Upstream)
+  end.
+
+init_request() ->
+  json_post("/mcp", [?V, {"Accept", "application/json, text/event-stream"}],
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}").
+
+capped(Fun) ->
+  test_support:cleanup_mcp_sessions(),   %% earlier tests leave sessions running
+  test_support:set_config("MCPMaxSessions", "1"),
+  test_support:set_config("MCPSessionWaitMs", "2000"),
+  {_, Pid} = new_session(),
+  try Fun()
+  after
+    catch mcp_server:terminate_session(Pid),
+    test_support:set_config("MCPMaxSessions", "0"),
+    test_support:set_config("MCPSessionWaitMs", "5000"),
+    catch mcp_admission:stop()
+  end.
+
+limit_tests() ->
+  [{"an initialize request answers 503 with Retry-After when MCPMaxSessions leaves no slot",
+    {timeout, 15, ?_test(capped(fun() ->
+       {ready2send, R} = call(init_request()),
+       ?assertEqual(503, R#response.code),
+       ?assertEqual("2", maps:get("Retry-After", R#response.headers)),
+       ?assertNotEqual(nomatch, binary:match(R#response.body, <<"503">>)),
+       ?assertEqual(1, maps:get(running, mcp_admission:status()))
+     end))}},
+   {"MaxSessions=1 on the rule answers 503 for that command even without a global cap",
+    {timeout, 15, ?_test(begin
+       test_support:cleanup_mcp_sessions(),
+       test_support:set_config("MCPSessionWaitMs", "0"),
+       {_, Pid} = new_session(),
+       try
+         {ready2send, R} = call([cat(), "5000", "MaxSessions=1"], init_request()),
+         ?assertEqual(503, R#response.code),
+         ?assertEqual("1", maps:get("Retry-After", R#response.headers))
+       after
+         catch mcp_server:terminate_session(Pid),
+         test_support:set_config("MCPSessionWaitMs", "5000"),
+         catch mcp_admission:stop()
+       end
+     end)}},
+   {"a rule with a bad keep-alive or an unknown option answers 500",
+    ?_test(begin
+             ?assertEqual({aborted, 500}, call([cat(), "later"], init_request())),
+             ?assertEqual({aborted, 500}, call([cat(), "5000", "Colour=red"], init_request()))
+           end)}].

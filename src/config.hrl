@@ -23,7 +23,13 @@
                    "KeepAlive"=> "10000", 
                    "ListenPort"=>"80", 
                    "AllowLegacyHttp"=>"No",
-                   "MaxPostSize"=>"10240"
+                   "MaxPostSize"=>"10240",
+                   "MCPMaxSessions"=>"0",
+                   "MCPSessionWaitMs"=>"5000",
+                   "MCPMemoryLimit"=>"0",
+                   "MCPMemoryPollMs"=>"1000",
+                   "MCPCgroup"=>"Yes",
+                   "MCPCgroupRoot"=>""
                   }). %% Default configuration
 %% Base headers
 -define(base_headers, #{"Server" => ?version}).

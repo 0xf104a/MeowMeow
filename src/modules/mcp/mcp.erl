@@ -41,6 +41,8 @@ get_context_rules() -> [].
 
 init() ->
   ok = mcp_port:init_mcp(),
+  ok = mcp_admission:ensure_started(),
+  _ = mcp_meter:init(),
   mcp_single:init_table().
 
 terminate(_) -> ok.

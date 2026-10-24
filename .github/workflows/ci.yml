@@ -1,0 +1,148 @@
+name: CI
+
+# The one pipeline for code changes: unit tests, then the end-to-end suite,
+# then the production image. The image is built only after the whole test
+# suite passed, and it is pushed to ghcr.io as
+#
+#   <short sha>          every commit on master and every pull request from
+#                        this repository once it is ready for review
+#   <tag> and latest     every release tag (*.*-*), in addition to <short sha>
+#
+# Pull requests from forks only build the image: their token cannot push.
+# Draft pull requests are tested but not published.
+on:
+  push:
+    branches: [ master ]
+    tags: [ '*.*-*' ]
+  pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
+
+# One run per pull request; pushes to master and tags never get cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  eunit:
+    name: Unit tests (EUnit)
+    runs-on: ubuntu-latest
+    container:
+      image: erlang:28.4.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run EUnit suites
+        run: rebar3 eunit
+      - name: Coverage summary
+        if: always()
+        run: rebar3 cover --verbose
+
+  e2e:
+    name: End-to-end tests (Docker)
+    needs: eunit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build the test image
+        run: |
+          docker build -t test.meow.meow -f tests/Dockerfile \
+            --build-arg "GIT_SHA=$(git rev-parse --short HEAD)" .
+      - name: Run the suite
+        run: docker run --rm test.meow.meow
+
+  image:
+    name: Docker image
+    needs: [ eunit, e2e ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write   # cosign keyless signing
+    env:
+      # Pushing needs a token with write access to packages, which fork pull
+      # requests do not get, and a pull request that is still a draft.
+      PUSH: ${{ github.event_name == 'push' || (github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Build the commit the tag names: on pull requests that is the head
+          # of the branch, not the temporary merge commit the tests ran on.
+          ref: ${{ github.event.pull_request.head.sha || '' }}
+
+      - name: Image metadata
+        id: meta
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          image=$(echo "$REGISTRY/$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          short=$(echo "$SHA" | cut -c1-7)
+          tags="$image:$short"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tags="$tags,$image:$GITHUB_REF_NAME,$image:latest"
+          fi
+          {
+            echo "image=$image"
+            echo "sha=$short"
+            echo "ref=$REF"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "tags=$tags"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ${{ env.REGISTRY }}
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GIT_SHA=${{ steps.meta.outputs.sha }}
+            GIT_REF=${{ steps.meta.outputs.ref }}
+            BUILD_DATE=${{ steps.meta.outputs.date }}
+
+      - name: Install cosign
+        if: env.PUSH == 'true'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the pushed image
+        if: env.PUSH == 'true'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          echo "$TAGS" | tr ',' '\n' | xargs -I {} cosign sign --yes "{}@${DIGEST}"
+
+      - name: Job summary
+        if: always()
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          SHA: ${{ steps.meta.outputs.sha }}
+          REF: ${{ steps.meta.outputs.ref }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            if [ "$PUSH" = true ]; then echo "### Pushed"; else echo "### Built, not pushed"; fi
+            echo
+            echo "$TAGS" | tr ',' '\n' | sed 's/^/- `/; s/$/`/'
+            echo
+            echo "commit \`$SHA\`, ref \`$REF\`, digest \`${DIGEST:-none}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -83,7 +83,7 @@ docker run -it test.meow.meow shell
 
 | File | Covers |
 |------|--------|
-| `tests/simple_test/test_server.rb` | The `Server` header matches `tests/vsn.txt`; a one-gigabyte file arrives intact (MD5 compared) and is streamed rather than buffered. |
+| `tests/simple_test/test_server.rb` | The `Server` header is `MeowMeow/<tests/vsn.txt>.<commit>`; a one-gigabyte file arrives intact (MD5 compared) and is streamed rather than buffered. |
 | `tests/simple_test/test_rules.rb` | `Route`, nested `Host`/`Route`, `Set-Header`, `Set-Code` with `Send-File`, `Abort`, `No-Content`, `Include`, MIME types, `404` and `500` paths, quoted arguments. |
 | `tests/simple_test/test_env.rb` | `If-Env`, `If-Not-Env` and `If-Env-Def` against the `RUNTYPE` variable set by the test script. |
 | `tests/simple_mcp/server.rb` | A minimal stdio MCP server used to exercise the `mcp` module by hand. |
@@ -108,14 +108,20 @@ For an end-to-end test:
 ## Version check
 
 `tests/vsn.txt` must equal the release version in `rebar.config`, because
-the first test compares the `Server` header with it. Bump both together; see
-[Releasing](releasing.md).
+the first test expects the `Server` header to be `MeowMeow/<vsn.txt>.<commit>`
+(optionally followed by `.dirty`). Bump both together; see
+[Releasing](releasing.md). The commit comes from the `GIT_SHA` build argument
+of `tests/Dockerfile`, which `test.sh` and CI pass; without it the header
+reads `.unknown`, which the test also accepts.
 
 ## Continuous integration
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `Erlang CI` (`erlang.yml`) | push and PR to `master` | `rebar3 compile` in the `erlang:28.4.1` image. |
-| `Tests` (`test.yml`) | every push | Job `eunit`: `rebar3 eunit` + `rebar3 cover` in the `erlang:28.4.1` image. Job `e2e` (`needs: eunit`, so it only runs when the unit tests pass): builds and runs the test image. |
-| `Docker` (`docker-publish.yml`) | version tags, PRs | Builds the production image; on tags pushes it to `ghcr.io` and signs it with cosign. |
+| `CI` (`ci.yml`) | push to `master`, release tags `*.*-*`, pull requests (including the switch from draft to ready for review) | Job `eunit`: `rebar3 eunit` + `rebar3 cover` in the `erlang:28.4.1` image. Job `e2e` (`needs: eunit`): builds and runs the test image. Job `image` (`needs: eunit, e2e`, so the image is only built when the whole suite passed): builds the production image and pushes it to `ghcr.io` signed with cosign, tagged with the short commit hash, plus the version and `latest` on release tags. Fork and draft pull requests only build. |
 | `Docs` (`docs.yml`) | push and PR to `master` | Stages the documentation and builds the site with `zensical build --strict`. |
+| `Benchmark` (`benchmark.yml`) | release tags, manual | Load-tests the image and records the results in the documentation; see [Benchmarking](benchmarking.md). |
+
+Pull requests run against the merge commit with `master`; the published image
+is built from the head commit of the branch, which is the hash it is tagged
+with.

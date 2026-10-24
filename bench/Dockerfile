@@ -6,15 +6,15 @@
 
 FROM docker.io/library/erlang:alpine AS builder
 
+# GIT_SHA/GIT_DIRTY feed scripts/git_vsn.sh, there is no .git in the context
 ARG GIT_SHA=unknown
 ARG GIT_DIRTY=
 
-RUN mkdir /buildroot
 WORKDIR /buildroot
-COPY src src
-COPY include include
 COPY rebar.config rebar.config
-RUN echo "-define(GIT_VSN, \"${GIT_SHA}${GIT_DIRTY}\")." > include/git_vsn.hrl
+COPY scripts scripts
+COPY include include
+COPY src src
 RUN rebar3 as prod release
 
 

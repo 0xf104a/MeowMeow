@@ -12,7 +12,9 @@ LogLevel 3
 KeepAlive 10000
 AllowLegacyHttp No
 MaxPostSize 1048576
-LoadModules static,header,route,env
+MCPMaxSessions 8
+MCPMemoryLimit 512M
+LoadModules static,header,route,env,mcp
 ```
 
 ## Directives
@@ -84,6 +86,58 @@ LoadModules static,header,route,env
     ```text
     LoadModules static,header,route,env,mcp
     ```
+
+### `MCPMaxSessions`
+
+:   Largest number of MCP tool sessions (subprocesses) alive at the same time,
+    over every `MCP-Tool-*` rule. A request that needs a new session while the
+    cap is reached waits up to `MCPSessionWaitMs` for a slot and is otherwise
+    answered `503 Service Unavailable` with `Retry-After`. `0` means no cap.
+    Per-command caps are set on the rule with `MaxSessions=N`; see
+    [mcp](../modules/mcp.md#session-caps).
+
+    **Default:** `0`
+
+### `MCPSessionWaitMs`
+
+:   How long, in milliseconds, a request may wait for a free session slot
+    before it gets `503`. `0` refuses at once.
+
+    **Default:** `5000`
+
+### `MCPMemoryLimit`
+
+:   Default memory limit of one MCP session's process tree, as bytes or with
+    a `K`, `M` or `G` suffix (`512M`). `0` means no limit. A rule's
+    `MemoryLimit=SIZE` overrides it. See
+    [mcp](../modules/mcp.md#memory-limits) for how it is enforced.
+
+    **Default:** `0`
+
+### `MCPMemoryPollMs`
+
+:   Period, in milliseconds, at which each session's memory is sampled.
+    With the `/proc` backend this is also how often the limit is checked.
+    `0` disables sampling (and software enforcement).
+
+    **Default:** `1000`
+
+### `MCPCgroup`
+
+:   `Yes` or `No`. When `Yes`, the server tries to put every MCP session in
+    its own cgroup v2 so the kernel meters and enforces its memory limit,
+    and falls back to `/proc` polling when the hierarchy is not writable.
+    `No` skips the attempt.
+
+    **Default:** `Yes`
+
+### `MCPCgroupRoot`
+
+:   Directory of the cgroup to create session cgroups under. Empty means the
+    cgroup the server runs in, read from `/proc/self/cgroup`. Only needed for
+    unusual setups.
+
+    **Default:** empty
 
 ## Notes
 

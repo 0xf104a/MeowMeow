@@ -336,7 +336,7 @@ cleanup_mcp_sessions() ->
     undefined -> ok;
     _ ->
       lists:foreach(
-        fun({Id, {_, {ok, Pid}}}) ->
+        fun({Id, {_, Pid}}) when is_pid(Pid) ->
               case is_process_alive(Pid) of
                 true -> catch mcp_server:terminate_session(Pid);
                 false -> ok
@@ -349,6 +349,8 @@ cleanup_mcp_sessions() ->
     undefined -> ok;
     _ -> catch ets:delete_all_objects(mcp_route_sessions)
   end,
+  catch mcp_admission:stop(),
+  catch mcp_meter:reset(),
   ok.
 
 %%--------------------------------------------------------------------

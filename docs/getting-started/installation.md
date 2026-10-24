@@ -23,10 +23,12 @@ cd MeowMeow
 rebar3 compile
 ```
 
-A pre-compile hook writes `include/git_vsn.hrl` with the current commit hash,
-which becomes part of the version string sent in the `Server` response header
-(for example `MeowMeow/2.0-alpha10.d98e0ab.`). If the source tree is not a git
-checkout the hash is reported as `unknown`.
+A pre-compile hook (`scripts/git_vsn.sh`) writes `include/git_vsn.hrl` with
+the current commit hash, which becomes part of the version string sent in the
+`Server` response header (for example `MeowMeow/2.0-alpha10.d98e0ab`, or
+`MeowMeow/2.0-alpha10.d98e0ab.dirty` with uncommitted changes). If the source
+tree is not a git checkout the hash is reported as `unknown`, unless it is
+given in the `GIT_SHA` environment variable as the container builds do.
 
 ## Build a release
 

@@ -38,8 +38,14 @@ mcp_request_state(Request) ->
 
 %% Client opened SSE stream without session — create new session + subprocess,
 %% then emit endpoint event so client knows where to POST
-handle_sse_open(Response, Tool, KeepAliveMs, SessionAt) ->
-  MCPSessionID = mcp_port:start_mcp_session(Tool, list_to_integer(KeepAliveMs)),
+handle_sse_open(Response, Tool, KeepAliveMs, Opts, SessionAt) ->
+  case mcp_port:start_mcp_session(Tool, KeepAliveMs, Opts) of
+    {error, busy} -> mcp_options:busy_response(Response, mcp_options:session_opts(Opts));
+    {error, _} -> {aborted, 502};
+    {ok, MCPSessionID} -> open_sse_stream(Response, MCPSessionID, SessionAt)
+  end.
+
+open_sse_stream(Response, MCPSessionID, SessionAt) ->
   Upstream = Response#response.upstream,
   Upstream ! cancel_tmr,
 
@@ -99,9 +105,9 @@ handle_sse_post(Response, MCPSessionID) ->
       }
   end.
 
-rule_mcp_sse(<<"GET">>, [Tool, KeepAliveMs], {none, _, _}, Response) ->
+rule_mcp_sse(<<"GET">>, {Tool, KeepAliveMs, Opts}, {none, _, _}, Response) ->
   %% No sessionId on GET — fresh connection, create session
-  handle_sse_open(Response, Tool, KeepAliveMs, Response#response.request#request.route);
+  handle_sse_open(Response, Tool, KeepAliveMs, Opts, Response#response.request#request.route);
 
 rule_mcp_sse(<<"GET">>, _, {MCPSessionID, _, _}, Response)
   when MCPSessionID =/= none ->
@@ -146,5 +152,8 @@ rule_mcp_sse(Method, _, _, _) ->
 
 rule_mcp_sse_call(Args, Response) ->
   Method = Response#response.request#request.method,
-  rule_mcp_sse(Method, Args,
-    mcp_request_state(Response#response.request), Response).
+  mcp_options:with_rule_args(Args,
+    fun(Tool, KeepAliveMs, Opts) ->
+      rule_mcp_sse(Method, {Tool, KeepAliveMs, Opts},
+        mcp_request_state(Response#response.request), Response)
+    end).

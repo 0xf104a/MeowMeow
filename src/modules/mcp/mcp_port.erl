@@ -10,7 +10,7 @@
 -author("f104a").
 
 %% API
--export([init_mcp/0, start_mcp_session/2, terminate_mcp_session/1, get_mcp_session_by_id/1]).
+-export([init_mcp/0, start_mcp_session/2, start_mcp_session/3, terminate_mcp_session/1, get_mcp_session_by_id/1]).
 
 init_mcp() ->
   ets:new(mcp_sessions, [set, public, named_table]),
@@ -36,10 +36,28 @@ generate_session_id() -> generate_session_id(64).
 %% @param KeepAliveMs: period for which session kept open in milliseconds
 -spec start_mcp_session(string(), integer()) -> binary().
 start_mcp_session(Tool, KeepAliveMs) ->
-  SessionId = generate_session_id(),
-  {ok, Pid} = mcp_server:start([Tool, KeepAliveMs]),
-  ets:insert(mcp_sessions, {SessionId, {Tool, Pid}}),
+  {ok, SessionId} = start_mcp_session(Tool, KeepAliveMs, #{}),
   SessionId.
+
+%% @doc
+%% Like start_mcp_session/2 with the rule options of the `MCP-Tool-*'
+%% rule (see mcp_options). Returns {error, busy} when the session caps
+%% leave no slot for this tool within the configured wait time.
+%% @end
+-spec start_mcp_session(string(), integer(), map()) ->
+        {ok, binary()} | {error, busy | term()}.
+start_mcp_session(Tool, KeepAliveMs, RuleOpts) ->
+  case mcp_server:start([Tool, KeepAliveMs, RuleOpts]) of
+    {ok, Pid} ->
+      SessionId = generate_session_id(),
+      ets:insert(mcp_sessions, {SessionId, {Tool, Pid}}),
+      {ok, SessionId};
+    {error, {shutdown, busy}} ->
+      {error, busy};
+    {error, Reason} ->
+      logging:err("Failed to start MCP tool ~s: ~p", [Tool, Reason]),
+      {error, Reason}
+  end.
 
 %% @doc
 %% Finds MCP session PID by session ID.

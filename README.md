@@ -1,10 +1,9 @@
 # MeowMeow
 
-[![Erlang CI](https://github.com/0xf104a/MeowMeow/actions/workflows/erlang.yml/badge.svg?branch=master)](https://github.com/0xf104a/MeowMeow/actions/workflows/erlang.yml)
-[![Tests](https://github.com/0xf104a/MeowMeow/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/0xf104a/MeowMeow/actions/workflows/test.yml)
-[![Docker](https://github.com/0xf104a/MeowMeow/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/0xf104a/MeowMeow/actions/workflows/docker-publish.yml)
+[![CI](https://github.com/0xf104a/MeowMeow/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/0xf104a/MeowMeow/actions/workflows/ci.yml)
 [![Docs](https://github.com/0xf104a/MeowMeow/actions/workflows/docs.yml/badge.svg?branch=master)](https://github.com/0xf104a/MeowMeow/actions/workflows/docs.yml)
-[![Documentation](https://readthedocs.org/projects/meowmeow/badge/?version=latest)](https://meowmeow.readthedocs.io/en/latest/)
+[![Documentation](https://readthedocs.org/projects/meowmeow/badge/)](https://meowmeow.readthedocs.io/)
+[![Container image](https://img.shields.io/badge/ghcr.io-0xf104a%2Fmeowmeow-2496ED?logo=docker&logoColor=white)](https://github.com/0xf104a/MeowMeow/pkgs/container/meowmeow)
 [![Erlang/OTP](https://img.shields.io/badge/Erlang%2FOTP-27%2B-A90533?logo=erlang&logoColor=white)](https://www.erlang.org/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://github.com/0xf104a/MeowMeow/blob/master/rebar.config)
 [![Release](https://img.shields.io/github/v/tag/0xf104a/MeowMeow?label=release)](https://github.com/0xf104a/MeowMeow/tags)
@@ -39,7 +38,7 @@ End
 - **One process pair per connection.** Each client gets its own handler and TCP flow-control process, so a slow client or a long download never blocks the others.
 - **Declarative routing.** A request runs through an ordered list of rules. Rules nest under conditions on the path, the `Host` header, any other header, or an environment variable.
 - **Modules.** Every directive beyond the five basic ones comes from a module. Writing one means implementing one small Erlang behaviour.
-- **MCP gateway.** The `mcp` module runs a stdio JSON-RPC tool per session and speaks the Streamable HTTP transport (`2025-11-25`), the legacy SSE transport (`2024-11-05`), or a single-session SSE variant for simple clients.
+- **MCP gateway.** The `mcp` module runs a stdio JSON-RPC tool per session and speaks the Streamable HTTP transport (`2025-11-25`), the legacy SSE transport (`2024-11-05`), or a single-session SSE variant for simple clients. Sessions can be capped (`MCPMaxSessions`, `MaxSessions=N`) and memory-limited per process tree (`MemoryLimit=256M`, via cgroup v2 when available).
 - **Streaming static files.** Files are sent in 64 KiB chunks; the test suite moves a one-gigabyte file.
 - **Container ready.** Multi-stage `Dockerfile`, images on `ghcr.io` signed with cosign, and a containerised integration suite.
 
@@ -171,15 +170,19 @@ codes are in the [mcp module documentation](https://github.com/0xf104a/MeowMeow/
 ## Docker
 
 ```bash
-docker pull ghcr.io/0xf104a/meowmeow:2.0-alpha10
+docker pull ghcr.io/0xf104a/meowmeow:latest
 docker run --rm -p 8080:80 \
   -v "$PWD/my-config:/etc/nya:ro" \
   -v "$PWD/site:/var/www:ro" \
-  ghcr.io/0xf104a/meowmeow:2.0-alpha10
+  ghcr.io/0xf104a/meowmeow:latest
 ```
 
-Images are built from the `Dockerfile` on every version tag and signed with
-cosign. See [Docker](https://github.com/0xf104a/MeowMeow/blob/master/docs/getting-started/docker.md)
+Every image is built by CI after the whole test suite passed and signed with
+cosign. Releases are tagged with their version (`2.0-alpha10`) and move
+`latest`; every commit on `master` and every pull request ready for review is
+tagged with its short commit hash. The commit is visible in the OCI labels, the
+`MEOWMEOW_*` environment and the `Server` header. See
+[Docker](https://github.com/0xf104a/MeowMeow/blob/master/docs/getting-started/docker.md)
 for building locally and verifying signatures.
 
 ## Development
