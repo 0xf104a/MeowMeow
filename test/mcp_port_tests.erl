@@ -70,6 +70,18 @@ session_tests() ->
      end)}},
    {"get_mcp_session_by_id/1 of an unknown id is none",
     ?_assertEqual(none, mcp_port:get_mcp_session_by_id(<<"NOPE">>))},
+   {"get_mcp_session_by_id/1 forgets a session whose process is gone and answers none (a session "
+    "ends by keep-alive expiry, tool exit or mcp_server:terminate_session/1 without anyone removing "
+    "its entry). (regression: this used to fail because the entry stayed in mcp_sessions forever, so "
+    "the transports called gen_server:call/2 on a dead pid and the client got a 502 instead of the 404 the spec requires)",
+    {timeout, 10, ?_test(begin
+       Id = mcp_port:start_mcp_session(cat(), 5000),
+       {ok, Pid} = mcp_port:get_mcp_session_by_id(Id),
+       ok = mcp_server:terminate_session(Pid),
+       ?assert(test_support:wait_until(fun() -> not is_process_alive(Pid) end, 2000)),
+       ?assertEqual(none, mcp_port:get_mcp_session_by_id(Id)),
+       ?assertEqual([], ets:lookup(mcp_sessions, Id))
+     end)}},
    {"terminate_mcp_session/1 of an unknown id is not_found",
     ?_assertEqual(not_found, mcp_port:terminate_mcp_session(<<"NOPE">>))},
    {"terminate_mcp_session/1 stops the tool and forgets the session (its -spec says ok). "

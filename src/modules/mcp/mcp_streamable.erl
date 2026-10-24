@@ -30,6 +30,11 @@ handle_mcp_session_init(Response, Tool, KeepAliveMs, Opts, DecodedRequest) ->
   case RequestId of
     none -> {aborted, 422};
     _ ->
+      %% Starting the tool and waiting for its initialize result can take
+      %% longer than the connection's keep-alive; that timer is for idle
+      %% connections, not for requests in flight. handle:handler/3 re-arms it
+      %% once the response is out.
+      Response#response.upstream ! cancel_tmr,
       case mcp_port:start_mcp_session(Tool, KeepAliveMs, Opts) of
         {error, busy} -> mcp_options:busy_response(Response, mcp_options:session_opts(Opts));
         {error, _} -> {aborted, 502};
@@ -85,7 +90,9 @@ handle_mcp_sse_call(Response, SessionPid, DecodedRequest) ->
   mcp_server:connect_to_mcp_session(SessionPid),
   logging:debug("Notifying ~p with ~p", [SessionPid, Response#response.request#request.body]),
   mcp_server:notify_mcp_session(SessionPid, Response#response.request#request.body),
-  wait_for_sse(SessionPid, Response, maps:get(<<"id">>, DecodedRequest)).
+  %% The handler starts every response as a 404 (handle:get_default_response/2);
+  %% a relayed tool answer is a 200.
+  wait_for_sse(SessionPid, Response#response{code = 200}, maps:get(<<"id">>, DecodedRequest)).
 
 handle_mcp_notification(Response, SessionPid) ->
   logging:debug("Notifying ~p", [SessionPid]),
@@ -130,10 +137,17 @@ handle_mcp_stream(Response, MCPSessionID) ->
       mcp_stream_loop(Upstream, Response)
   end.
 
+%% An unsupported protocol version is a 400 (2025-11-25 and 2026-07-28 both
+%% require it). The body stays the plain HTML error page: a dual-era
+%% 2026-07-28 client falls back to the initialize handshake only when a 400
+%% carries no recognised modern JSON-RPC error, so this must not become a
+%% JSON-RPC -32022 error until a stateless (2026-07-28) path exists.
 rule_mcp_call(_, _, {_, MCPVersion, _, _, _}, _)
   when MCPVersion =/= none, MCPVersion < ?mcp_version ->
-  logging:warn("Too old MCP version requested: ~p", [MCPVersion]),
-  {aborted, 501};
+  logging:warn("Unsupported MCP version requested: ~p", [MCPVersion]),
+  {aborted, 400};
+%% A session-less POST that is not initialize. This is also what a 2026-07-28
+%% client's first (stateless) request looks like; the 400 tells it to fall back.
 rule_mcp_call(<<"POST">>, _, {_, _, MCPSessionID, IsInitializeRequest, _}, _)
   when MCPSessionID == none, not IsInitializeRequest -> {aborted, 400};
 rule_mcp_call(<<"POST">>, _, {_, _, _, _, ContentType}, _)
@@ -167,14 +181,20 @@ rule_mcp_call(<<"GET">>, _, {_, _, MCPSessionID, _, _}, Response) ->
     true -> handle_mcp_stream(Response, MCPSessionID)
   end;
 
+rule_mcp_call(<<"DELETE">>, _, {_, _, none, _, _}, _) -> {aborted, 400};
 rule_mcp_call(<<"DELETE">>, _, {_, _, MCPSessionID, _, _}, Response) ->
-  case mcp_port:get_mcp_session_by_id(list_to_binary(MCPSessionID)) of
+  SessionId = list_to_binary(MCPSessionID),
+  case mcp_port:get_mcp_session_by_id(SessionId) of
     none ->
       logging:warn("MCP session ID ~p not found", [MCPSessionID]),
       {aborted, 404};
     {ok, Pid} ->
       logging:debug("Terminating ~p", [Pid]),
-      mcp_server:terminate_session(Pid),
+      %% terminate_mcp_session/1 gives the tool a 300 ms SIGTERM grace period,
+      %% which must not count against the keep-alive timer (see above). It also
+      %% forgets the id, so the next request with it is a 404 right away.
+      Response#response.upstream ! cancel_tmr,
+      mcp_port:terminate_mcp_session(SessionId),
       {ready2send, Response#response{body = <<>>, code = 204}}
   end;
 

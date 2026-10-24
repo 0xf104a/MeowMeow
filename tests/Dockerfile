@@ -30,6 +30,7 @@ RUN rebar3 as prod release
 WORKDIR /
 RUN mkdir /etc/nya/
 COPY tests/config/ /etc/nya/
+COPY tests/simple_mcp /etc/nya/simple_mcp
 RUN chmod +x /etc/nya/*.sh 2>/dev/null || true
 RUN cp -r /buildroot/_build/prod/rel/MeowMeow /MeowMeow
 COPY tests/test.sh /usr/bin/TestMeowMeow

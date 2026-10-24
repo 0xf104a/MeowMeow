@@ -53,20 +53,35 @@ Requirements and the status codes returned when they are not met:
 
 | Condition | Status |
 |-----------|--------|
-| `Mcp-Protocol-Version` header missing or older than `2025-11-25` | `501` |
+| `Mcp-Protocol-Version` header older than `2025-11-25` | `400` |
 | `initialize` while no session slot is free (see [Session caps](#session-caps)) | `503` with `Retry-After` |
 | `POST` without a session that is not an `initialize` request | `400` |
 | `POST` whose `Content-Type` is not `application/json` | `415` |
 | `initialize` request without an `id` | `422` |
 | Unknown or expired `Mcp-Session-Id` | `404` |
-| `GET` without a session | `400`; without the right `Accept` | `406` |
+| `GET` or `DELETE` without a session | `400` |
+| `GET` without the right `Accept` | `406` |
 | Subprocess exits while a response is awaited | `504` |
 | Any other method | `405` |
 
 !!! note "Protocol version header"
-    The server treats a missing `Mcp-Protocol-Version` header as the older
-    `2025-03-26` revision and answers `501`. Clients must send
-    `Mcp-Protocol-Version: 2025-11-25` on every request.
+    A request without `Mcp-Protocol-Version` is accepted, since the header
+    is only mandatory after initialization. A header naming a revision older
+    than `2025-11-25` is refused with `400`, as both the `2025-11-25` and the
+    `2026-07-28` revisions require. Newer revisions are not refused.
+
+!!! info "Clients speaking revision 2026-07-28"
+    Revision [`2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28/changelog)
+    made MCP stateless: no `initialize`, no `Mcp-Session-Id`, the protocol
+    version travels in `_meta` on every request. MeowMeow is a *legacy*
+    server in those terms. A dual-era client probes with a session-less
+    request, gets the plain `400` error page, which is not a JSON-RPC error,
+    and falls back to the `initialize` handshake as the
+    [backward compatibility rules](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility)
+    tell it to. From then on it is served exactly like a `2025-11-25`
+    client; the `Mcp-Method` and `Mcp-Name` headers and the `_meta` keys are
+    passed through untouched. Clients that only speak `2026-07-28` cannot use
+    this transport yet.
 
 ## `MCP-Tool-SSE`
 

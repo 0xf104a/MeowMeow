@@ -52,6 +52,28 @@ new_session() ->
   {ok, Pid} = mcp_port:get_mcp_session_by_id(Id),
   {binary_to_list(Id), Pid}.
 
+%% Like call/1 but starting from the response handle:handle/2 really hands
+%% to the rule chain: a 404 with the error page (get_default_response/2),
+%% not the 200 response_for/2 defaults to.
+call_as_handler(Req) ->
+  Upstream = test_support:spawn_collector(),
+  try
+    Resp = (test_support:response_for(Req, Upstream))#response{code = 404, body = <<"<html>404</html>">>},
+    mcp_streamable:rule_mcp_streamable_call(args(), Resp)
+  after
+    test_support:stop_collector(Upstream)
+  end.
+
+%% Like call/1 but also returns what the rule sent to the upstream.
+call_collecting(Req) ->
+  Upstream = test_support:spawn_collector(),
+  try
+    Result = mcp_streamable:rule_mcp_streamable_call(args(), test_support:response_for(Req, Upstream)),
+    {Result, test_support:collected(Upstream)}
+  after
+    test_support:stop_collector(Upstream)
+  end.
+
 mcp_streamable_test_() ->
   {setup, fun setup/0, fun cleanup/1,
    fun(_) -> [state_tests(), dispatch_tests(), flow_tests(), limit_tests()] end}.
@@ -74,9 +96,14 @@ state_tests() ->
 %%--------------------------------------------------------------------
 dispatch_tests() ->
   Init = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
-  [{"a protocol version older than 2025-11-25 is refused with 501",
-    ?_assertEqual({aborted, 501},
+  [{"a protocol version older than 2025-11-25 is refused with 400 (spec 2025-11-25 and 2026-07-28: "
+    "an invalid or unsupported MCP-Protocol-Version MUST be answered with 400 Bad Request). "
+    "(regression: this used to answer 501 Not Implemented)",
+    ?_assertEqual({aborted, 400},
                   call(json_post("/mcp", [{"Mcp-Protocol-Version", "2025-06-18"}, {"Mcp-Session-Id", "X"}], "{}")))},
+   {"DELETE without a session is a 400 like GET. (regression: this used to crash in "
+    "list_to_binary(none) and surface as a 502 from rules:execute_rule/3)",
+    ?_assertEqual({aborted, 400}, call(test_support:request("DELETE", "/mcp", [{"Host", "h"}, ?V])))},
    {"a non-initialize POST without a session is a 400",
     ?_assertEqual({aborted, 400}, call(json_post("/mcp", [?V], "{\"method\":\"ping\"}")))},
    {"a POST with a non-JSON content type is a 415",
@@ -99,7 +126,7 @@ dispatch_tests() ->
     "(regression: this used to fail because the first clause of rule_mcp_call/4 rejects every request whose version "
     "(defaulting to 2025-03-26) sorts before 2025-11-25 with 501, so no client can ever initialize "
     "without sending the header up front)",
-    {timeout, 15, ?_assertNotEqual({aborted, 501}, call(json_post("/mcp", [], Init)))}},
+    {timeout, 15, ?_assertMatch({ready2send, _}, call(json_post("/mcp", [], Init)))}},
    {"'Content-Type: application/json; charset=utf-8' is JSON (RFC 9110 section 8.3: "
     "media type parameters). (regression: this used to fail because the content type is compared verbatim with "
     "\"application/json\" so any parameter yields 415)",
@@ -155,6 +182,59 @@ flow_tests() ->
        {Tag4, R4} = call(test_support:request("DELETE", "/mcp", [{"Host", "h"}, ?V, {"Mcp-Session-Id", Sid}])),
        ?assertEqual(ready2send, Tag4),
        ?assertEqual(204, R4#response.code),
+       ?assert(test_support:wait_until(fun() -> not is_process_alive(Pid) end, 2000))
+     end)}},
+   {"a request inside a session is answered with status 200 (the handler starts every response "
+    "as a 404). (regression: this used to fail because wait_for_sse/3 kept the default code, so real "
+    "clients got the tool's JSON with a 404 status; invisible with response_for/2, which starts at 200)",
+    {timeout, 15, ?_test(begin
+       {Id, Pid} = new_session(),
+       try
+         {Tag, R} = call_as_handler(json_post("/mcp", [?V, {"Mcp-Session-Id", Id}], Ping)),
+         ?assertEqual(ready2send, Tag),
+         ?assertEqual(200, R#response.code),
+         ?assertEqual(list_to_binary(Ping), iolist_to_binary(R#response.body))
+       after
+         catch mcp_server:terminate_session(Pid)
+       end
+     end)}},
+   {"a request on a terminated session is a 404 (spec: after termination the server MUST answer "
+    "404 for that id). (regression: this used to fail because the mcp_sessions entry outlived the "
+    "process, so connect_to_mcp_session/1 died with noproc and the client got a 502)",
+    {timeout, 15, ?_test(begin
+       {Id, Pid} = new_session(),
+       ok = mcp_server:terminate_session(Pid),
+       ?assert(test_support:wait_until(fun() -> not is_process_alive(Pid) end, 2000)),
+       ?assertEqual({aborted, 404}, call(json_post("/mcp", [?V, {"Mcp-Session-Id", Id}], Ping)))
+     end)}},
+   {"DELETE forgets the id at once: the next request with it is a 404, not a 502",
+    {timeout, 15, ?_test(begin
+       {Id, _Pid} = new_session(),
+       {Tag, R} = call(test_support:request("DELETE", "/mcp", [{"Host", "h"}, ?V, {"Mcp-Session-Id", Id}])),
+       ?assertEqual({ready2send, 204}, {Tag, R#response.code}),
+       ?assertEqual(none, mcp_port:get_mcp_session_by_id(list_to_binary(Id))),
+       ?assertEqual({aborted, 404}, call(json_post("/mcp", [?V, {"Mcp-Session-Id", Id}], Ping)))
+     end)}},
+   {"initialize disables the connection's keep-alive timer while the tool starts and answers "
+    "(nya_tcp runs that timer during request handling too, and a tool may need longer than "
+    "KeepAlive to start). (regression: this used to fail because nothing sent cancel_tmr, so "
+    "with KeepAlive 100 a slow tool meant the connection was killed before the 201 went out)",
+    {timeout, 15, ?_test(begin
+       {{Tag, R}, Sent} = call_collecting(json_post("/mcp", [?V], Init)),
+       ?assertEqual(ready2send, Tag),
+       ?assert(lists:member(cancel_tmr, Sent)),
+       {ok, Pid} = mcp_port:get_mcp_session_by_id(list_to_binary(maps:get("MCP-Session-Id", R#response.headers))),
+       catch mcp_server:terminate_session(Pid)
+     end)}},
+   {"DELETE disables the keep-alive timer before terminating the session (mcp_server gives the "
+    "tool a 300 ms SIGTERM grace). (regression: this used to fail because nothing sent cancel_tmr, so with "
+    "KeepAlive 100 nya_tcp always killed the connection before the 204 went out)",
+    {timeout, 15, ?_test(begin
+       {Id, Pid} = new_session(),
+       {{Tag, R}, Sent} = call_collecting(test_support:request("DELETE", "/mcp", [{"Host", "h"}, ?V, {"Mcp-Session-Id", Id}])),
+       ?assertEqual(ready2send, Tag),
+       ?assertEqual(204, R#response.code),
+       ?assert(lists:member(cancel_tmr, Sent)),
        ?assert(test_support:wait_until(fun() -> not is_process_alive(Pid) end, 2000))
      end)}},
    {"GET with a session and 'Accept: application/json, text/event-stream' opens an "

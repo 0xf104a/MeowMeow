@@ -62,11 +62,22 @@ start_mcp_session(Tool, KeepAliveMs, RuleOpts) ->
 %% @doc
 %% Finds MCP session PID by session ID.
 %% @end
+%% A session whose process is gone (keep-alive expiry, tool exit, DELETE)
+%% is forgotten here: its id must answer 404 afterwards, not crash the
+%% caller with noproc. Nothing else removes entries when the process dies.
 -spec get_mcp_session_by_id(binary()) -> {ok, pid()} | none.
 get_mcp_session_by_id(SessionId) ->
   case ets:lookup(mcp_sessions, SessionId) of
-    [{SessionId, {_, Pid}}] ->
-      {ok, Pid};
+    [{SessionId, {_, Pid}}] when is_pid(Pid) ->
+      case is_process_alive(Pid) of
+        true -> {ok, Pid};
+        false ->
+          ets:delete(mcp_sessions, SessionId),
+          none
+      end;
+    [{SessionId, _}] ->
+      ets:delete(mcp_sessions, SessionId),
+      none;
     [] ->
       none
   end.
