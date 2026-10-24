@@ -11,13 +11,13 @@ and only after the unit and end-to-end suites have passed on the same commit:
 
 | Tag | Published for |
 |-----|---------------|
-| `2.0-alpha10` (the git tag) | every release tag `*.*-*` |
+| `2.0-beta1` (the git tag) | every release tag `*.*-*` |
 | `latest` | moved to every release tag |
 | `b51811c` (short commit hash) | every commit on `master`, every release tag, and every pull request from this repository once it is ready for review (drafts are tested but not published) |
 
 ```bash
 docker pull ghcr.io/0xf104a/meowmeow:latest        # newest release
-docker pull ghcr.io/0xf104a/meowmeow:2.0-alpha10   # a specific release
+docker pull ghcr.io/0xf104a/meowmeow:2.0-beta1   # a specific release
 docker pull ghcr.io/0xf104a/meowmeow:b51811c       # a specific commit
 ```
 

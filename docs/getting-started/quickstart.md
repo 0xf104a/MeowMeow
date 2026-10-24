@@ -79,7 +79,7 @@ curl -i http://127.0.0.1:8080/
 HTTP/1.1 200 OK
 Content-Type: text/html
 X-Powered-By: Pusheen the Cat
-Server: MeowMeow/2.0-alpha10.d98e0ab.
+Server: MeowMeow/2.0-beta1.d98e0ab.
 Content-Length: 24
 ...
 ```

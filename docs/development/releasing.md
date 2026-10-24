@@ -1,7 +1,7 @@
 # Releasing
 
 Releases are git tags of the form `MAJOR.MINOR-SUFFIX`, for example
-`2.0-alpha10`. Pushing such a tag runs the test suite, then builds, signs and
+`2.0-beta1`. Pushing such a tag runs the test suite, then builds, signs and
 publishes the container image under the version and `latest`, and records a
 benchmark run.
 
@@ -11,9 +11,9 @@ The version string lives in four places that must agree:
 
 | File | What to change |
 |------|----------------|
-| `rebar.config` | `{release, {'MeowMeow', "2.0-alpha10"}, [app]}` |
-| `src/app.app.src` | `{vsn, "2.0-alpha10"}` |
-| `src/config.hrl` | `-define(version, "MeowMeow/2.0-alpha10" ++ ?GIT_VSN).` |
+| `rebar.config` | `{release, {'MeowMeow', "2.0-beta1"}, [app]}` |
+| `src/app.app.src` | `{vsn, "2.0-beta1"}` |
+| `src/config.hrl` | `-define(version, "MeowMeow/2.0-beta1" ++ ?GIT_VSN).` |
 | `tests/vsn.txt` | The bare version, used by the `Server` header test. |
 
 The documentation site reads nothing from these files, so no change is needed
@@ -60,7 +60,7 @@ Read the Docs builds `latest` from `master` on every push and builds every
 release tag as its own version. Which version the root URL
 (<https://meowmeow.readthedocs.io/>) opens is decided by the Read the Docs
 project, not by the repository. Read the Docs' built-in `stable` alias skips
-pre-releases such as `2.0-alpha10`, so the newest tag is made the default with
+pre-releases such as `2.0-beta1`, so the newest tag is made the default with
 two automation rules under *Settings → Automation rules* of the project
 (one-time setup):
 

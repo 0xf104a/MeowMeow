@@ -62,7 +62,15 @@ module Tests
  
   def self.test_send_file
     r = TestHTTP::get("http://localhost/catnip_info")
-    r.code == 200 and r.headers["Server"] == self.get_vsn and r.data.strip == "Selling catnip to Pusheen the cat is offically prohibited by the cats party."
+    r.code == 200 and r.data.strip == "Selling catnip to Pusheen the cat is offically prohibited by the cats party."
+  end
+
+  # Send-File must attach the base headers too, Server among them.
+  # Regression: this used to compare Server to the bare version with ==, which
+  # broke once the header gained the commit suffix (see test_server.rb).
+  def self.test_send_file_server_header
+    r = TestHTTP::get("http://localhost/catnip_info")
+    self.server_header_ok?(r.headers["Server"])
   end
 
   def self.test_send_file_non_extistent

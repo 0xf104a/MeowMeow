@@ -178,7 +178,7 @@ docker run --rm -p 8080:80 \
 ```
 
 Every image is built by CI after the whole test suite passed and signed with
-cosign. Releases are tagged with their version (`2.0-alpha10`) and move
+cosign. Releases are tagged with their version (`2.0-beta1`) and move
 `latest`; every commit on `master` and every pull request ready for review is
 tagged with its short commit hash. The commit is visible in the OCI labels, the
 `MEOWMEOW_*` environment and the `Server` header. See

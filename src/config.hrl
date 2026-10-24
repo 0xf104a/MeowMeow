@@ -10,7 +10,7 @@
 -include("git_vsn.hrl").
 -record(sockaddr_in4, {family = inet, port = 8888, addr = {0, 0, 0, 0}}).
 -define(CHUNK_SIZE, 2048).
--define(version, "MeowMeow/2.0-alpha10" ++ ?GIT_VSN).
+-define(version, "MeowMeow/2.0-beta1" ++ ?GIT_VSN).
 %% nya is pwetty, right? ^^~
 -define(accessfile, "/etc/nya/routes.conf").
 -define(configfile, "/etc/nya/meow.conf").

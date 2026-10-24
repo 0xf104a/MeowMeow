@@ -18,10 +18,16 @@ module Tests
       "MeowMeow/"+vsn.strip
   end
 
+  # True when a Server header is this build's version: the bare version from
+  # vsn.txt followed by the commit suffix. Shared by every test that checks it.
+  def self.server_header_ok?(header)
+      vsn = Regexp.escape(self.get_vsn)
+      !(header =~ /\A#{vsn}\.(?:[0-9a-f]+|unknown)(\.dirty)?\z/).nil?
+  end
+
   def self.test_server_header
       r = TestHTTP::get("http://localhost")
-      vsn = Regexp.escape(self.get_vsn)
-      !(r.headers["Server"] =~ /\A#{vsn}\.(?:[0-9a-f]+|unknown)(\.dirty)?\z/).nil?
+      self.server_header_ok?(r.headers["Server"])
   end
 
   def self.test_big_file
