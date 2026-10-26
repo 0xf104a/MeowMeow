@@ -133,7 +133,7 @@ transport details.
 ## Test configuration
 
 The integration suite runs against
-[`tests/config/routes.conf`](https://github.com/0xf104a/MeowMeow/blob/master/tests/config/routes.conf),
+[`e2e/config/routes.conf`](https://github.com/0xf104a/MeowMeow/blob/master/e2e/config/routes.conf),
 which combines nested `Host` and `Route` blocks, all three `If-Env*` rules,
 `Set-Code` with `Send-File`, an `Include` of a second file and a one-gigabyte
 file transfer. It is a good reference for the exact syntax every rule

@@ -25,7 +25,7 @@ setup() ->
   test_support:setup_config(#{"LogLevel" => "0"}),
   test_support:setup_rules(),
   %% Load exactly the modules the E2E configuration loads, so that every
-  %% directive in tests/config/routes.conf is known to the parser.
+  %% directive in e2e/config/routes.conf is known to the parser.
   [{ok, _} = nya_loader:nya_load(M) || M <- e2e_modules()],
   %% An unknown directive makes access call server:abort_init/1, which
   %% stops the VM; for the whole suite it is replaced by a stub that
@@ -38,9 +38,9 @@ cleanup(Dir) ->
   test_support:rm_rf(Dir),
   test_support:teardown_all(ok).
 
-%% LoadModules from tests/config/meow.conf (what tests/Dockerfile installs).
+%% LoadModules from e2e/config/meow.conf (what e2e/Dockerfile installs).
 e2e_modules() ->
-  {ok, Dev} = file:open("tests/config/meow.conf", read),
+  {ok, Dev} = file:open("e2e/config/meow.conf", read),
   {ok, Map} = configuration:parse2map(Dev, #{"LoadModules" => ""}),
   file:close(Dev),
   [string:trim(M) || M <- util:parse_list(maps:get("LoadModules", Map)), string:trim(M) =/= ""].
@@ -55,12 +55,12 @@ access_test_() ->
 conf(Dir, Name, Content) ->
   test_support:write_file(filename:join(Dir, Name), Content).
 
-%% Copies tests/config/*.conf into Dir rewriting the hard-coded
+%% Copies e2e/config/*.conf into Dir rewriting the hard-coded
 %% /etc/nya/ include paths so the real E2E configuration can be parsed.
 shipped(Dir) ->
   lists:foreach(
     fun(F) ->
-      {ok, Bin} = file:read_file(filename:join("tests/config", F)),
+      {ok, Bin} = file:read_file(filename:join("e2e/config", F)),
       Rewritten = binary:replace(Bin, <<"/etc/nya/">>, list_to_binary(Dir ++ "/"), [global]),
       ok = file:write_file(filename:join(Dir, F), Rewritten)
     end, ["routes.conf", "mimes.conf", "nonsense.conf", "bad_meow.conf"]),
@@ -101,7 +101,7 @@ parse_tests(Dir) ->
     ?_assertEqual([{context, "Route", ["/a"], [{"Abort", ["418"]}]}],
                   access:parse_access(conf(Dir, "comments.conf",
                     "# leading comment\n\n\tRoute /a # trailing comment\n\t\tAbort 418\n\tEnd\n\n")))},
-   {"blocks nest (Host containing Route, as in tests/config/routes.conf)",
+   {"blocks nest (Host containing Route, as in e2e/config/routes.conf)",
     ?_assertEqual([{context, "Host", ["127.0.0.1*"],
                     [{"Set-Header", ["X-Different-Host", "true"]},
                      {context, "Route", ["/duckduck*"],
@@ -152,9 +152,9 @@ parse_tests(Dir) ->
 
 %%--------------------------------------------------------------------
 %% The real configuration files must parse into what the E2E tests
-%% (tests/simple_test/*.rb) assume.
+%% (e2e/simple_test/*.rb) assume.
 shipped_routes_tests(Dir) ->
-  [{"tests/config/routes.conf parses into the rule list the E2E suite relies on",
+  [{"e2e/config/routes.conf parses into the rule list the E2E suite relies on",
     ?_test(begin
              Rules = access:parse_access(shipped(Dir)),
              ?assert(is_list(Rules)),
@@ -245,7 +245,7 @@ error_path_tests(Dir) ->
              ?assertEqual({error, "Bogus"}, access:load_access(F)),
              ?assertEqual(undefined, ets:info(access))
            end))},
-   {"Include of a missing file aborts initialisation with reason 'open' (tests/config/bad_meow.conf)",
+   {"Include of a missing file aborts initialisation with reason 'open' (e2e/config/bad_meow.conf)",
     ?_test(with_stub(fun() ->
              F = filename:join(Dir, "bad_meow.conf"),
              shipped(Dir),

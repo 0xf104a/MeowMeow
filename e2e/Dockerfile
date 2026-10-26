@@ -6,8 +6,8 @@ RUN dd if=/dev/urandom of=/var/www/FatCat bs=1024MB count=1
 
 # Testing framework
 WORKDIR /
-COPY tests/simple_test tests
-COPY tests/vsn.txt /tests/vsn.txt
+COPY e2e/simple_test tests
+COPY e2e/vsn.txt /tests/vsn.txt
 RUN mkdir /testroot
 WORKDIR /testroot
 RUN apk add ruby ruby-libs ruby-bigdecimal ruby-bundler ruby-dev build-base git
@@ -29,13 +29,13 @@ RUN rebar3 as prod release
 # Installation
 WORKDIR /
 RUN mkdir /etc/nya/
-COPY tests/config/ /etc/nya/
-COPY tests/simple_mcp /etc/nya/simple_mcp
+COPY e2e/config/ /etc/nya/
+COPY e2e/simple_mcp /etc/nya/simple_mcp
 RUN chmod +x /etc/nya/*.sh 2>/dev/null || true
 RUN cp -r /buildroot/_build/prod/rel/MeowMeow /MeowMeow
-COPY tests/test.sh /usr/bin/TestMeowMeow
+COPY e2e/test.sh /usr/bin/TestMeowMeow
 RUN chmod +x /usr/bin/TestMeowMeow
-COPY tests/www /tmp/www
+COPY e2e/www /tmp/www
 RUN mv /tmp/www/* /var/www/
 RUN rm -rf /tmp/www
 

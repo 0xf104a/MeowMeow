@@ -99,8 +99,8 @@ and run with `-e DEPLOYMENT=staging`. See [env](../modules/env.md).
 
 ## Test image
 
-`tests/Dockerfile` builds a second image that installs Ruby, clones the
+`e2e/Dockerfile` builds a second image that installs Ruby, clones the
 [SimpleTest](https://github.com/0xf104a/SimpleTest) harness, starts MeowMeow
-with the configuration from `tests/config/` and runs the integration suite.
+with the configuration from `e2e/config/` and runs the integration suite.
 `./test.sh` at the repository root builds and runs it. See
 [Testing](../development/testing.md).

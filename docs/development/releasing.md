@@ -14,7 +14,7 @@ The version string lives in four places that must agree:
 | `rebar.config` | `{release, {'MeowMeow', "2.0-beta1"}, [app]}` |
 | `src/app.app.src` | `{vsn, "2.0-beta1"}` |
 | `src/config.hrl` | `-define(version, "MeowMeow/2.0-beta1" ++ ?GIT_VSN).` |
-| `tests/vsn.txt` | The bare version, used by the `Server` header test. |
+| `e2e/vsn.txt` | The bare version, used by the `Server` header test. |
 
 The documentation site reads nothing from these files, so no change is needed
 there.

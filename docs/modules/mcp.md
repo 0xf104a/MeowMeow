@@ -241,13 +241,13 @@ and terminate TLS in a reverse proxy. Keep in mind that whoever can edit
 
 ## Trying it out
 
-`tests/simple_mcp/server.rb` in the repository is a minimal stdio MCP server
+`e2e/simple_mcp/server.rb` in the repository is a minimal stdio MCP server
 in Ruby that answers `initialize`, lists one tool and executes it. With
 `ruby` installed:
 
 ```text
 Route /mcp
- MCP-Tool-Streamable "ruby /path/to/MeowMeow/tests/simple_mcp/server.rb" 30000
+ MCP-Tool-Streamable "ruby /path/to/MeowMeow/e2e/simple_mcp/server.rb" 30000
 End
 ```
 

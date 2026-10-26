@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @doc EUnit suite for the authorization module (Authorize / Authorize-Via)
 %%% Expectations come from the module's own doc comment and from the E2E
-%%% suite tests/simple_test/test_authorization.rb.
+%%% suite e2e/simple_test/test_authorization.rb.
 %%%
 %%% Authorize-Via runs an external program, so the tests write small shell
 %%% scripts into a temporary directory and point the rule at them.
@@ -29,7 +29,7 @@ setup() ->
   Dir = test_support:tmp_dir(),
   test_support:write_file(filename:join(Dir, "users.txt"),
                           "# users\nadmin:secret123\nalice:wonderland # trailing comment\n\nbob:builder\n"),
-  %% Same tool as tests/config/auth_tool.sh
+  %% Same tool as e2e/config/auth_tool.sh
   script(Dir, "auth_tool.sh",
          "INPUT=$(cat)\n"
          "if [ \"$INPUT\" = \"" ?TOKEN "\" ] || [ \"$INPUT\" = \"Bearer " ?TOKEN "\" ]; then exit 0; else exit 1; fi\n"),
@@ -126,7 +126,7 @@ via_tests(Dir) ->
     {timeout, 10, ?_assert(access:execute_context_rule(req([{"Authorization", ?TOKEN}]), "Authorize-Via", [Tool]))}}].
 
 %%--------------------------------------------------------------------
-%% The /auth_via route of tests/config/routes.conf, run through handle/2
+%% The /auth_via route of e2e/config/routes.conf, run through handle/2
 %% with the test process playing the upstream (as handle_tests does).
 chain_tests(Dir) ->
   Tool = filename:join(Dir, "auth_tool.sh"),

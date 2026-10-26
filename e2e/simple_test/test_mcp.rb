@@ -2,7 +2,7 @@ require "net/http"
 require "uri"
 require "json"
 
-# MeowMeow fronts tests/simple_mcp/server.rb on /mcp with MCP-Tool-Streamable
+# MeowMeow fronts e2e/simple_mcp/server.rb on /mcp with MCP-Tool-Streamable
 # (protocol revision 2025-11-25). These tests drive the transport both as a
 # 2025-11-25 client and as a 2026-07-28 ("modern", stateless) client.
 #

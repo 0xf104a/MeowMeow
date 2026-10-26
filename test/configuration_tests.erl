@@ -144,9 +144,9 @@ shipped_config_tests() ->
              %% every listed module must exist in the build
              ?assertEqual([], [M || M <- Mods, code:ensure_loaded(list_to_atom(M)) =/= {module, list_to_atom(M)}])
            end)},
-   {"tests/config/meow.conf: what the E2E Docker image runs with, all modules loadable",
+   {"e2e/config/meow.conf: what the E2E Docker image runs with, all modules loadable",
     ?_test(begin
-             Map = Parse("tests/config/meow.conf"),
+             Map = Parse("e2e/config/meow.conf"),
              ?assertEqual("80", maps:get("ListenPort", Map)),
              ?assertEqual("0.0.0.0", maps:get("ListenHost", Map)),
              ?assertEqual("100", maps:get("KeepAlive", Map)),

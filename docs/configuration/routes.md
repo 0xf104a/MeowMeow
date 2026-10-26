@@ -161,5 +161,5 @@ internally and answer `405` to methods they do not support.
 
 See also the configurations in [Examples](examples.md) and the annotated test
 configuration in
-[`tests/config/routes.conf`](https://github.com/0xf104a/MeowMeow/blob/master/tests/config/routes.conf),
+[`e2e/config/routes.conf`](https://github.com/0xf104a/MeowMeow/blob/master/e2e/config/routes.conf),
 which exercises every rule.

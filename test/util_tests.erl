@@ -32,7 +32,7 @@ wildcard_tests() ->
     ?_assertNot(util:check_wildcard("/index.htm", "/*.html"))},
    {"a pattern without wildcards is an exact, anchored match",
     ?_assert(util:check_wildcard("/catnip", "/catnip"))},
-   {"'/catnip' must not match '/catnip_info' (anchored at the end, see tests/config/routes.conf)",
+   {"'/catnip' must not match '/catnip_info' (anchored at the end, see e2e/config/routes.conf)",
     ?_assertNot(util:check_wildcard("/catnip_info", "/catnip"))},
    {"'/catnip' must not match 'x/catnip' (anchored at the start)",
     ?_assertNot(util:check_wildcard("x/catnip", "/catnip"))},
@@ -99,7 +99,7 @@ list_map_tests() ->
 address_tests() ->
   [{"str2addr parses dotted quad into an inet tuple",
     ?_assertEqual({127, 0, 0, 1}, util:str2addr("127.0.0.1"))},
-   {"str2addr parses 0.0.0.0 (tests/config/meow.conf ListenHost)",
+   {"str2addr parses 0.0.0.0 (e2e/config/meow.conf ListenHost)",
     ?_assertEqual({0, 0, 0, 0}, util:str2addr("0.0.0.0"))},
    {"str2addr with a non-numeric octet yields {error, bad_arg} in that position",
     ?_assertEqual({1, 2, 3, {error, bad_arg}}, util:str2addr("1.2.3.x"))},

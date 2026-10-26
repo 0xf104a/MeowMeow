@@ -54,11 +54,11 @@ spec_tests() ->
              {ok, Vsn} = application:get_key(app, vsn),
              ?assertEqual("MeowMeow/" ++ Vsn, lists:sublist(?version, length("MeowMeow/" ++ Vsn)))
            end)},
-   {"tests/vsn.txt (what the E2E suite compares the Server header against) matches the app vsn",
+   {"e2e/vsn.txt (what the E2E suite compares the Server header against) matches the app vsn",
     ?_test(begin
              ok = Load(),
              {ok, Vsn} = application:get_key(app, vsn),
-             {ok, Bin} = file:read_file("tests/vsn.txt"),
+             {ok, Bin} = file:read_file("e2e/vsn.txt"),
              Txt = string:trim(binary_to_list(Bin)),
              ?assertEqual(Vsn, lists:sublist(Txt, length(Vsn)))
            end)}].

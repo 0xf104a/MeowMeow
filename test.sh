@@ -18,7 +18,7 @@ fi
 echo "=> Building E2E test image"
 GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 GIT_DIRTY=$(git diff --quiet HEAD -- 2>/dev/null || echo dirty)
-docker build -t test.meow.meow -f tests/Dockerfile \
+docker build -t test.meow.meow -f e2e/Dockerfile \
   --build-arg "GIT_SHA=$GIT_SHA" --build-arg "GIT_DIRTY=$GIT_DIRTY" .
 if [[ $? != 0 ]]; then
    echo "Failed to build test image"
